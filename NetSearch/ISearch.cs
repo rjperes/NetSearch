@@ -7,6 +7,11 @@
         public required string Content { get; set; }
     }
 
+    public class SearchOptions
+    {
+        public string? UserAgent { get; set; }
+    }
+
     public class QueryOptions
     {
         public uint? Page { get; set; }

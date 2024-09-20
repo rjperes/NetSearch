@@ -10,9 +10,16 @@ namespace NetSearchConsole
         {
             var services = new ServiceCollection();
 
-            services.AddLogging(options =>
+            services.AddOptions();
+
+            services.AddLogging(static options =>
             {
                 options.AddConsole();
+            });
+
+            services.Configure<SearchOptions>(static options =>
+            {
+                options.UserAgent = "Mozilla/5.0 (Windows) NetSearch NetSearch/1";
             });
 
             services.AddGoogleSearch();

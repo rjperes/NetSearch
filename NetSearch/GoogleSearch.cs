@@ -1,4 +1,6 @@
-﻿using System.Net;
+﻿using Microsoft.Extensions.Options;
+using Microsoft.Net.Http.Headers;
+using System.Net;
 using System.Text;
 
 namespace NetSearch
@@ -7,9 +9,19 @@ namespace NetSearch
     {
         private readonly HttpClient _httpClient;
 
-        public GoogleSearch(HttpClient httpClient)
+        public GoogleSearch(HttpClient httpClient, IOptions<SearchOptions> options)
         {
+            ArgumentNullException.ThrowIfNull(httpClient, nameof(httpClient));
+
             _httpClient = httpClient;
+
+            if (options?.Value != null)
+            {
+                if (!string.IsNullOrWhiteSpace(options.Value.UserAgent))
+                {
+                    _httpClient.DefaultRequestHeaders.Add(HeaderNames.UserAgent, options.Value.UserAgent);
+                }
+            }
         }
 
         public Task<List<SearchResults>> Search(string query, CancellationToken cancellationToken = default) => Search(query, new QueryOptions(), cancellationToken);
