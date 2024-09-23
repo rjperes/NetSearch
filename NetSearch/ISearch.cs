@@ -1,15 +1,10 @@
-﻿namespace NetSearch
+namespace NetSearch
 {
-    public class SearchResults
+    public class SearchResult
     {
         public required string Title { get; set; }
         public required Uri Url { get; set; }
         public required string Content { get; set; }
-    }
-
-    public class SearchOptions
-    {
-        public string? UserAgent { get; set; }
     }
 
     public class QueryOptions
@@ -21,7 +16,7 @@
 
     public interface ISearch
     {
-        Task<List<SearchResults>> Search(string query, CancellationToken cancellationToken = default);
-        Task<List<SearchResults>> Search(string query, QueryOptions options, CancellationToken cancellationToken = default);
+        Task<List<SearchResult>> Search(string query, CancellationToken cancellationToken = default);
+        Task<List<SearchResult>> Search(string query, QueryOptions options, CancellationToken cancellationToken = default);
     }
 }
