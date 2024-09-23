@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NetSearch;
 
@@ -10,16 +11,22 @@ namespace NetSearchConsole
         {
             var services = new ServiceCollection();
 
+            var configuration = new ConfigurationBuilder()
+                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+                .Build();
+
             services.AddOptions();
 
-            services.AddLogging(static options =>
+            services.AddLogging(options =>
             {
+                options.AddConfiguration(configuration.GetSection("Logging"));
                 options.AddConsole();
             });
 
             services.Configure<SearchOptions>(static options =>
             {
-                options.UserAgent = "Mozilla/5.0 (Windows) NetSearch NetSearch/1";
+                options.SetChromeUserAgent();
+                options.AddLanguages("en");
             });
 
             services.AddGoogleSearch();
