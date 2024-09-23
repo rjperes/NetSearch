@@ -67,6 +67,11 @@ namespace NetSearch
                 requestUrl.Append($"&start={options.Page.Value * options.Size.GetValueOrDefault(10)}");
             }
 
+            if (!string.IsNullOrWhiteSpace(options.Site))
+            {
+                requestUrl.Append($"&site={options.Site}");
+            }
+
             var escapedRequestUrl = requestUrl.ToString();
 
             var response = await _httpClient.GetStringAsync(escapedRequestUrl, cancellationToken);
