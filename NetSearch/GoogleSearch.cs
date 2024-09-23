@@ -1,13 +1,40 @@
-﻿using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
-using System.Net;
+using Microsoft.VisualBasic;
+using System.Net.WebSockets;
 using System.Text;
+using System.Text.RegularExpressions;
+using System.Xml;
 
 namespace NetSearch
 {
     public class GoogleSearch : ISearch
     {
+        private class Google1ResultsParser : IResultsParser
+        {
+            private static Regex _matches = new Regex("<a href=\"\\/url\\?q=([^\"]+)\"[^\\/>]+>(.|\\n)*?<\\/a>", RegexOptions.Multiline);
+
+            public bool TryParse(string response, List<SearchResult> results)
+            {
+                var matches = _matches.Matches(response);
+
+                foreach (Match match in matches)
+                {
+                    var xml = new XmlDocument();
+                    xml.LoadXml(match.Value);
+
+                    var url = xml.SelectSingleNode("//a[@href]").Attributes[0].Value.Replace("/url?q=", string.Empty);
+                    var title = xml.SelectSingleNode("//h3/div").InnerText;
+
+                }
+
+
+                return results.Any();
+            }
+        }
+
         private readonly HttpClient _httpClient;
+        private static readonly IEnumerable<IResultsParser> _parsers = new[] { new Google1ResultsParser() };
 
         public GoogleSearch(HttpClient httpClient, IOptions<SearchOptions> options)
         {
@@ -21,12 +48,17 @@ namespace NetSearch
                 {
                     _httpClient.DefaultRequestHeaders.Add(HeaderNames.UserAgent, options.Value.UserAgent);
                 }
+
+                if (((bool?)options?.Value?.AcceptLanguages.Any()).GetValueOrDefault())
+                {
+                    _httpClient.DefaultRequestHeaders.Add(HeaderNames.AcceptLanguage, string.Join(",", options?.Value?.AcceptLanguages!));
+                }
             }
         }
 
-        public Task<List<SearchResults>> Search(string query, CancellationToken cancellationToken = default) => Search(query, new QueryOptions(), cancellationToken);
+        public Task<List<SearchResult>> Search(string query, CancellationToken cancellationToken = default) => Search(query, new QueryOptions(), cancellationToken);
 
-        public async Task<List<SearchResults>> Search(string query, QueryOptions options, CancellationToken cancellationToken = default)
+        public async Task<List<SearchResult>> Search(string query, QueryOptions options, CancellationToken cancellationToken = default)
         {
             var requestUrl = new StringBuilder($"?q={Uri.EscapeDataString(query)}");
 
@@ -37,9 +69,41 @@ namespace NetSearch
 
             var escapedRequestUrl = requestUrl.ToString();
 
-            var results = await _httpClient.GetStringAsync(escapedRequestUrl, cancellationToken);
+            var response = await _httpClient.GetStringAsync(escapedRequestUrl, cancellationToken);
 
-            return null;
+            var results = new List<SearchResult>();
+
+            foreach (var parser in _parsers)
+            {
+                if (parser.TryParse(response, results))
+                {
+                    break;
+                }
+            }
+
+            return results;
+        }
+
+        private List<SearchResult> ParseMatches(MatchCollection matches)
+        {
+            var results = new List<SearchResult>();
+
+            foreach (var match in matches.OfType<Match>())
+            {
+                var doc = new XmlDocument();
+                doc.LoadXml(match.Value);
+
+                var url = doc.SelectSingleNode("a[href]");
+
+                var result = new SearchResult
+                {
+                    Url = new(match.Groups[1].Value),
+                    Title = "",
+                    Content = ""
+                };
+            }
+
+            return results;
         }
     }
 }
