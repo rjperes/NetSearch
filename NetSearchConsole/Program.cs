@@ -26,7 +26,7 @@ namespace NetSearchConsole
             services.AddGoogleSearch(options =>
             {
                 options.SetChromeUserAgent();
-                options.AddLanguages("en");
+                options.AcceptLanguages("en");
             });
 
             var serviceProvider = services.BuildServiceProvider();

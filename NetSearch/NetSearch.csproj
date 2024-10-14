@@ -4,6 +4,13 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <PackageId>NetSearch</PackageId>
+    <Title>Search.NET</Title>
+    <Authors>Ricardo Peres</Authors>
+    <Description>A search proxy for .NET</Description>
+    <Copyright>Ricardo Peres</Copyright>
+    <PackageProjectUrl>https://github.com/rjperes/NetSearch</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/rjperes/NetSearch</RepositoryUrl>
   </PropertyGroup>
 
   <ItemGroup>
