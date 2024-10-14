@@ -5,9 +5,22 @@ using System.Text;
 
 namespace NetSearch
 {
+    public enum GoogleSearchType
+    {
+        Video,
+        News,
+        Images,
+        Web
+    }
+
+    public class GoogleQueryOptions : QueryOptions
+    {
+        public GoogleSearchType? SearchType { get; set; }
+    }
+
     public class GoogleSearch : ISearch
     {
-        private class Google1ResultsParser : IResultsParser
+        private class ChromeResultsParser : IResultsParser
         {
             public async Task<bool> TryParse(string response, List<SearchResult> results)
             {
@@ -63,7 +76,7 @@ namespace NetSearch
         }
 
         private readonly HttpClient _httpClient;
-        private static readonly IEnumerable<IResultsParser> _parsers = [ new Google1ResultsParser() ];
+        private static readonly IEnumerable<IResultsParser> _parsers = [ new ChromeResultsParser() ];
         private const int ResultsPerPage = 9;
 
         public GoogleSearch(HttpClient httpClient, IOptions<SearchOptions> options)
@@ -105,7 +118,15 @@ namespace NetSearch
                     throw new InvalidOperationException($"Invalid site '{options.Site}");
                 }
 
-                requestUrl.Append(Uri.EscapeDataString($" site={site}"));
+                requestUrl.Append($" site:{site}");
+            }
+
+            if (options is GoogleQueryOptions googleOptions)
+            {
+                if (googleOptions.SearchType != null)
+                {
+                    requestUrl.Append($" {googleOptions.SearchType.ToString()!.ToLower()}");
+                }
             }
 
             if (options.Page != null && options.Page.Value != 0)

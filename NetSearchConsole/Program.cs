@@ -34,7 +34,7 @@ namespace NetSearchConsole
             var search = serviceProvider.GetRequiredService<ISearch>();
             var google = serviceProvider.GetRequiredKeyedService<ISearch>("Google");
 
-            var results = await search.Search("ricardo peres", new QueryOptions { Page = 1, Site = "https://observador.pt" });
+            var results = await search.Search("ricardo peres", new GoogleQueryOptions { SearchType = GoogleSearchType.Images });
         }
     }
 }
