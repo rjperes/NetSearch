@@ -23,20 +23,18 @@ namespace NetSearchConsole
                 options.AddConsole();
             });
 
-            services.Configure<SearchOptions>(static options =>
+            services.AddGoogleSearch(options =>
             {
                 options.SetChromeUserAgent();
                 options.AddLanguages("en");
             });
-
-            services.AddGoogleSearch();
 
             var serviceProvider = services.BuildServiceProvider();
 
             var search = serviceProvider.GetRequiredService<ISearch>();
             var google = serviceProvider.GetRequiredKeyedService<ISearch>("Google");
 
-            var results = await search.Search("ricardo peres");
+            var results = await search.Search("ricardo peres", new QueryOptions { Page = 1, Site = "https://observador.pt" });
         }
     }
 }
