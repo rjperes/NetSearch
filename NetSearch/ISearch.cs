@@ -1,6 +1,20 @@
+using System.Collections;
+using System.Diagnostics;
+
 namespace NetSearch
 {
-    public record SearchResult
+    [DebuggerDisplay("Hits={Count}")]
+    public class SearchResult : IEnumerable<SearchHit>
+    {
+        public List<SearchHit> Hits { get; } = new List<SearchHit>();
+        public int Count => Hits.Count;
+
+        IEnumerator<SearchHit> IEnumerable<SearchHit>.GetEnumerator() => Hits.GetEnumerator();
+
+        IEnumerator IEnumerable.GetEnumerator() => Hits.GetEnumerator();
+    }
+
+    public record SearchHit
     {
         public required string Title { get; init; }
         public required string Url { get; init; }
@@ -27,7 +41,7 @@ namespace NetSearch
 
     public interface ISearch
     {
-        Task<List<SearchResult>> Search(string query, CancellationToken cancellationToken = default);
-        Task<List<SearchResult>> Search(string query, QueryOptions options, CancellationToken cancellationToken = default);
+        Task<SearchResult> Search(string query, CancellationToken cancellationToken = default);
+        Task<SearchResult> Search(string query, QueryOptions options, CancellationToken cancellationToken = default);
     }
 }

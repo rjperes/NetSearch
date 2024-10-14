@@ -26,32 +26,32 @@ namespace NetSearch
             return options;
         }
 
-        public static SearchOptions SetChromeUserAgent(this SearchOptions options)
+        public static SearchOptions SetUserAgent(this SearchOptions options, string userAgent)
         {
             ArgumentNullException.ThrowIfNull(options, nameof(options));
-            options.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36";
+            ArgumentException.ThrowIfNullOrWhiteSpace(userAgent, nameof(userAgent));
+            options.UserAgent = userAgent;
             return options;
+        }
+
+        public static SearchOptions SetChromeUserAgent(this SearchOptions options)
+        {
+            return options.SetUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36");
         }
 
         public static SearchOptions SetEdgeUserAgent(this SearchOptions options)
         {
-            ArgumentNullException.ThrowIfNull(options, nameof(options));
-            options.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/128.0.2739.90";
-            return options;
+            return options.SetUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/128.0.2739.90");
         }
 
         public static SearchOptions SetFirefoxUserAgent(this SearchOptions options)
         {
-            ArgumentNullException.ThrowIfNull(options, nameof(options));
-            options.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:130.0) Gecko/20100101 Firefox/130.0";
-            return options;
+            return options.SetUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:130.0) Gecko/20100101 Firefox/130.0");
         }
 
         public static SearchOptions SetSafariUserAgent(this SearchOptions options)
         {
-            ArgumentNullException.ThrowIfNull(options, nameof(options));
-            options.UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15";
-            return options;
+            return options.SetUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15");
         }
     }
 }

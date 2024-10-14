@@ -23,7 +23,7 @@ namespace NetSearch
     {
         private class ChromeResultsParser : IResultsParser
         {
-            public async Task<bool> TryParse(string response, List<SearchResult> results)
+            public async Task<bool> TryParse(string response, List<SearchHit> results)
             {
                 using var context = BrowsingContext.New(Configuration.Default);
                 using var doc = await context.OpenAsync(req => req.Content(response));
@@ -60,7 +60,7 @@ namespace NetSearch
                         content = contentNodes.Count() > 2 ? contentNodes.ElementAt(2).InnerHtml : string.Empty;
                     }
 
-                    var result = new SearchResult
+                    var result = new SearchHit
                     {
                         Title = title!,
                         Url = url!,
@@ -78,7 +78,7 @@ namespace NetSearch
 
         private readonly HttpClient _httpClient;
         private readonly ILogger<GoogleSearch> _logger;
-        private static readonly IEnumerable<IResultsParser> _parsers = [ new ChromeResultsParser() ];
+        private static readonly IEnumerable<IResultsParser> _parsers = [new ChromeResultsParser()];
         private const int ResultsPerPage = 9;
 
         public GoogleSearch(HttpClient httpClient, IOptions<SearchOptions> options, ILogger<GoogleSearch> logger)
@@ -104,11 +104,12 @@ namespace NetSearch
             }
         }
 
-        public Task<List<SearchResult>> Search(string query, CancellationToken cancellationToken = default) => Search(query, new QueryOptions(), cancellationToken);
+        public Task<SearchResult> Search(string query, CancellationToken cancellationToken = default) => Search(query, new QueryOptions(), cancellationToken);
 
-        public async Task<List<SearchResult>> Search(string query, QueryOptions options, CancellationToken cancellationToken = default)
+        public async Task<SearchResult> Search(string query, QueryOptions options, CancellationToken cancellationToken = default)
         {
             var requestUrl = new StringBuilder($"?q={Uri.EscapeDataString(query)}");
+            var result = new SearchResult();
 
             if (!string.IsNullOrWhiteSpace(options.Site))
             {
@@ -143,7 +144,7 @@ namespace NetSearch
 
             if (options.Page != null && options.Page.Value != 0)
             {
-                var page = (options.Page.Value * ResultsPerPage)+ options.Page.Value;
+                var page = (options.Page.Value * ResultsPerPage) + options.Page.Value;
                 _logger.LogDebug($"Setting results start to '{page}'");
                 requestUrl.Append($"&start={page}");
             }
@@ -152,17 +153,15 @@ namespace NetSearch
 
             var response = await _httpClient.GetStringAsync(escapedRequestUrl, cancellationToken);
 
-            var results = new List<SearchResult>();
-
             foreach (var parser in _parsers)
             {
-                if (await parser.TryParse(response, results))
+                if (await parser.TryParse(response, result.Hits))
                 {
                     break;
                 }
             }
 
-            return results;
+            return result;
         }
     }
 }
