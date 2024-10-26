@@ -11,12 +11,12 @@
     <Copyright>Ricardo Peres</Copyright>
     <PackageProjectUrl>https://github.com/rjperes/NetSearch</PackageProjectUrl>
     <RepositoryUrl>https://github.com/rjperes/NetSearch</RepositoryUrl>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="AngleSharp" Version="1.1.2" />
     <PackageReference Include="AngleSharp.Css" Version="0.17.0" />
-    <PackageReference Include="HtmlAgilityPack" Version="1.11.67" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1" />
     <PackageReference Include="Microsoft.Net.Http.Headers" Version="8.0.10" />
   </ItemGroup>

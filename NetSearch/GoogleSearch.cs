@@ -16,7 +16,7 @@ namespace NetSearch
 
     public class GoogleQueryOptions : QueryOptions
     {
-        public GoogleSearchType? SearchType { get; set; }
+        public GoogleSearchType? SearchType { get; init; }
     }
 
     public class GoogleSearch : ISearch
