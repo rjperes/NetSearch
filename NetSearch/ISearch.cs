@@ -8,7 +8,7 @@ namespace NetSearch
     {
         public List<SearchHit> Hits { get; } = new List<SearchHit>();
         public int Count => Hits.Count;
-        public int? TotalCount { get; }
+        public int? TotalCount { get; init; }
 
         IEnumerator<SearchHit> IEnumerable<SearchHit>.GetEnumerator() => Hits.GetEnumerator();
 

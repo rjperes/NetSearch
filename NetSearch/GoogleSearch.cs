@@ -78,15 +78,20 @@ namespace NetSearch
 
         private readonly HttpClient _httpClient;
         private readonly ILogger<GoogleSearch> _logger;
-        private static readonly IEnumerable<IResultsParser> _parsers = [new ChromeResultsParser()];
+        private static readonly List<IResultsParser> _parsers = [new ChromeResultsParser()];
         private const int ResultsPerPage = 9;
 
-        public GoogleSearch(HttpClient httpClient, IOptions<SearchOptions> options, ILogger<GoogleSearch> logger)
+        public GoogleSearch(HttpClient httpClient, IOptions<SearchOptions> options, ILogger<GoogleSearch> logger, IEnumerable<IResultsParser> parsers)
         {
             ArgumentNullException.ThrowIfNull(httpClient, nameof(httpClient));
 
             _httpClient = httpClient;
             _logger = logger;
+            
+            if (parsers != null && parsers.Any())
+            {
+                _parsers.AddRange(parsers);
+            }
 
             if (options?.Value != null)
             {

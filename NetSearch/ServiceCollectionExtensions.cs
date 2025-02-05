@@ -34,6 +34,11 @@ namespace NetSearch
                 client.BaseAddress = new("https://google.com/search");
             }).RegisterKeyedService().AddDefaultLogger();
 
+            services.AddKeyedTransient<ISearch>("Google", (sp, key) =>
+            {
+                return ActivatorUtilities.CreateInstance<GoogleSearch>(sp);
+            });
+
             return services;
         }
     }

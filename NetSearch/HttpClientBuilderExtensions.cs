@@ -9,7 +9,7 @@ namespace NetSearch
             ArgumentNullException.ThrowIfNull(builder, nameof(builder));
             ArgumentException.ThrowIfNullOrWhiteSpace(builder.Name, nameof(builder.Name));
 
-            builder.Services.AddKeyedTransient(builder.Name, (sp, key) => sp.GetRequiredService<IHttpClientFactory>().CreateClient((string)key);
+            builder.Services.AddKeyedTransient(builder.Name, (sp, key) => sp.GetRequiredService<IHttpClientFactory>().CreateClient((string)key));
 
             return builder;
         }

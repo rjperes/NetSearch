@@ -12,6 +12,7 @@
     <PackageProjectUrl>https://github.com/rjperes/NetSearch</PackageProjectUrl>
     <RepositoryUrl>https://github.com/rjperes/NetSearch</RepositoryUrl>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <Version>1.0.1</Version>
   </PropertyGroup>
 
   <ItemGroup>

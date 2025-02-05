@@ -23,6 +23,8 @@ namespace NetSearchConsole
                 options.AddConsole();
             });
 
+            services.AddHttpClient();
+
             services.AddGoogleSearch(options =>
             {
                 options.SetChromeUserAgent();
