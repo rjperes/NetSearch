@@ -80,6 +80,7 @@ namespace NetSearch
         private readonly ILogger<GoogleSearch> _logger;
         private static readonly List<IResultsParser> _parsers = [new ChromeResultsParser()];
         private const int ResultsPerPage = 9;
+        private const string Name = "Google";
 
         public GoogleSearch(HttpClient httpClient, IOptions<SearchOptions> options, ILogger<GoogleSearch> logger, IEnumerable<IResultsParser> parsers)
         {
@@ -160,9 +161,16 @@ namespace NetSearch
 
             foreach (var parser in _parsers)
             {
-                if (await parser.TryParse(response, result.Hits))
+                try
                 {
-                    break;
+                    if (await parser.TryParse(response, result.Hits))
+                    {
+                        break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, $"An error occurred while parsing the response in {parser}");
                 }
             }
 
