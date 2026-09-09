@@ -79,42 +79,17 @@ public class SearchTests
     }
 
     [Fact]
-    public async Task YouTubeSearch_ParsesVideoResults_FromInitialData_AndBuildsExpectedQuery()
+    public async Task YouTubeSearch_ParsesVideoResults_FromHtml_AndBuildsExpectedQuery()
     {
         const string html = """
-            <html><body><script>
-            var ytInitialData = {
-              "contents": [{
-                "videoRenderer": {
-                  "title": {
-                    "runs": [{
-                      "text": "YouTube title",
-                      "navigationEndpoint": {
-                        "commandMetadata": {
-                          "webCommandMetadata": {
-                            "url": "/watch?v=123"
-                          }
-                        }
-                      }
-                    }]
-                  },
-                  "thumbnail": {
-                    "thumbnails": [{
-                      "url": "https://img.youtube.com/vi/123/default.jpg"
-                    }]
-                  },
-                  "publishedTimeText": {
-                    "simpleText": "1 day ago"
-                  },
-                  "descriptionSnippet": {
-                    "runs": [{
-                      "text": "YouTube content"
-                    }]
-                  }
-                }
-              }]
-            };
-            </script></body></html>
+            <html><body>
+              <ytd-video-renderer class="style-scope ytd-item-section-renderer">
+                <a id="video-title" href="/watch?v=123" title="YouTube title"></a>
+                <img src="https://img.youtube.com/vi/123/default.jpg" />
+                <span class="inline-metadata-item style-scope ytd-video-meta-block">1 day ago</span>
+                <div id="description-text">YouTube content</div>
+              </ytd-video-renderer>
+            </body></html>
             """;
 
         var handler = new StubHttpMessageHandler(html);
@@ -139,40 +114,17 @@ public class SearchTests
     }
 
     [Fact]
-    public async Task YouTubeSearch_ParsesChannelResults_FromInitialData()
+    public async Task YouTubeSearch_ParsesChannelResults_FromHtml()
     {
         const string html = """
-            <html><body><script>
-            var ytInitialData = {
-              "contents": [{
-                "channelRenderer": {
-                  "title": {
-                    "simpleText": "DotNet"
-                  },
-                  "navigationEndpoint": {
-                    "commandMetadata": {
-                      "webCommandMetadata": {
-                        "url": "/@dotnet"
-                      }
-                    }
-                  },
-                  "thumbnail": {
-                    "thumbnails": [{
-                      "url": "https://example.com/channel.png"
-                    }]
-                  },
-                  "descriptionSnippet": {
-                    "runs": [{
-                      "text": "Official channel"
-                    }]
-                  },
-                  "subscriberCountText": {
-                    "simpleText": "1M subscribers"
-                  }
-                }
-              }]
-            };
-            </script></body></html>
+            <html><body>
+              <ytd-channel-renderer>
+                <a id="main-link" href="/@dotnet" title="DotNet"></a>
+                <img src="https://example.com/channel.png" />
+                <div id="description-snippet">Official channel</div>
+                <span id="subscribers">1M subscribers</span>
+              </ytd-channel-renderer>
+            </body></html>
             """;
 
         var handler = new StubHttpMessageHandler(html);
@@ -192,35 +144,17 @@ public class SearchTests
     }
 
     [Fact]
-    public async Task YouTubeSearch_ParsesPlaylistResults_FromInitialData()
+    public async Task YouTubeSearch_ParsesPlaylistResults_FromHtml()
     {
         const string html = """
-            <html><body><script>
-            var ytInitialData = {
-              "contents": [{
-                "playlistRenderer": {
-                  "title": {
-                    "simpleText": "NetSearch playlist"
-                  },
-                  "navigationEndpoint": {
-                    "commandMetadata": {
-                      "webCommandMetadata": {
-                        "url": "/playlist?list=PL123"
-                      }
-                    }
-                  },
-                  "thumbnail": {
-                    "thumbnails": [{
-                      "url": "https://example.com/playlist.png"
-                    }]
-                  },
-                  "videoCountText": {
-                    "simpleText": "12 videos"
-                  }
-                }
-              }]
-            };
-            </script></body></html>
+            <html><body>
+              <ytd-playlist-renderer>
+                <a href="/playlist?list=PL123"><span id="text">NetSearch playlist</span></a>
+                <img src="https://example.com/playlist.png" />
+                <div id="description-snippet">12 videos</div>
+                <div id="video-count">12 videos</div>
+              </ytd-playlist-renderer>
+            </body></html>
             """;
 
         var handler = new StubHttpMessageHandler(html);
