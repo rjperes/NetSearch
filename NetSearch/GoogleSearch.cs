@@ -101,7 +101,7 @@ namespace NetSearch
 
             _httpClient = httpClient;
             _logger = logger;
-            
+
             if (parsers != null && parsers.Any())
             {
                 _parsers.AddRange(parsers);
