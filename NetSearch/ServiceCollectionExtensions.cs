@@ -41,5 +41,42 @@ namespace NetSearch
 
             return services;
         }
+
+        public static IServiceCollection AddBingSearch(this IServiceCollection services, SearchOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(services, nameof(services));
+            ArgumentNullException.ThrowIfNull(options, nameof(options));
+
+            services.AddSingleton(Options.Create(options));
+
+            return AddBingSearch(services);
+        }
+
+        public static IServiceCollection AddBingSearch(this IServiceCollection services, Action<SearchOptions> options)
+        {
+            ArgumentNullException.ThrowIfNull(services, nameof(services));
+            ArgumentNullException.ThrowIfNull(options, nameof(options));
+
+            services.Configure(options);
+
+            return AddBingSearch(services);
+        }
+
+        public static IServiceCollection AddBingSearch(this IServiceCollection services)
+        {
+            ArgumentNullException.ThrowIfNull(services, nameof(services));
+
+            services.AddHttpClient<ISearch, BingSearch>("Bing", static client =>
+            {
+                client.BaseAddress = new("https://bing.com/search");
+            }).RegisterKeyedService().AddDefaultLogger();
+
+            services.AddKeyedTransient<ISearch>("Bing", (sp, key) =>
+            {
+                return ActivatorUtilities.CreateInstance<BingSearch>(sp);
+            });
+
+            return services;
+        }
     }
 }
