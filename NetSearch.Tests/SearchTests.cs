@@ -79,17 +79,42 @@ public class SearchTests
     }
 
     [Fact]
-    public async Task YouTubeSearch_ParsesResults_AndBuildsExpectedQuery()
+    public async Task YouTubeSearch_ParsesVideoResults_FromInitialData_AndBuildsExpectedQuery()
     {
         const string html = """
-            <html><body>
-              <ytd-video-renderer class="style-scope ytd-item-section-renderer">
-                <a id="video-title" href="/watch?v=123" title="YouTube title"></a>
-                <img src="https://img.youtube.com/vi/123/default.jpg" />
-                <span class="inline-metadata-item style-scope ytd-video-meta-block">1 day ago</span>
-                <div id="description-text">YouTube content</div>
-              </ytd-video-renderer>
-            </body></html>
+            <html><body><script>
+            var ytInitialData = {
+              "contents": [{
+                "videoRenderer": {
+                  "title": {
+                    "runs": [{
+                      "text": "YouTube title",
+                      "navigationEndpoint": {
+                        "commandMetadata": {
+                          "webCommandMetadata": {
+                            "url": "/watch?v=123"
+                          }
+                        }
+                      }
+                    }]
+                  },
+                  "thumbnail": {
+                    "thumbnails": [{
+                      "url": "https://img.youtube.com/vi/123/default.jpg"
+                    }]
+                  },
+                  "publishedTimeText": {
+                    "simpleText": "1 day ago"
+                  },
+                  "descriptionSnippet": {
+                    "runs": [{
+                      "text": "YouTube content"
+                    }]
+                  }
+                }
+              }]
+            };
+            </script></body></html>
             """;
 
         var handler = new StubHttpMessageHandler(html);
@@ -110,7 +135,108 @@ public class SearchTests
         Assert.Equal("1 day ago", result.Hits[0].Date);
         Assert.Equal("https://img.youtube.com/vi/123/default.jpg", result.Hits[0].Image);
         Assert.NotNull(handler.LastRequestUri);
-        Assert.Equal("?search_query=dotnet site:contoso.com video", Uri.UnescapeDataString(handler.LastRequestUri!.Query));
+        Assert.Equal("?search_query=dotnet site:contoso.com&sp=EgIQAQ==", Uri.UnescapeDataString(handler.LastRequestUri!.Query));
+    }
+
+    [Fact]
+    public async Task YouTubeSearch_ParsesChannelResults_FromInitialData()
+    {
+        const string html = """
+            <html><body><script>
+            var ytInitialData = {
+              "contents": [{
+                "channelRenderer": {
+                  "title": {
+                    "simpleText": "DotNet"
+                  },
+                  "navigationEndpoint": {
+                    "commandMetadata": {
+                      "webCommandMetadata": {
+                        "url": "/@dotnet"
+                      }
+                    }
+                  },
+                  "thumbnail": {
+                    "thumbnails": [{
+                      "url": "https://example.com/channel.png"
+                    }]
+                  },
+                  "descriptionSnippet": {
+                    "runs": [{
+                      "text": "Official channel"
+                    }]
+                  },
+                  "subscriberCountText": {
+                    "simpleText": "1M subscribers"
+                  }
+                }
+              }]
+            };
+            </script></body></html>
+            """;
+
+        var handler = new StubHttpMessageHandler(html);
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://www.youtube.com/results") };
+        var search = new YouTubeSearch(client, Options.Create(new SearchOptions()), NullLogger<YouTubeSearch>.Instance, []);
+
+        var result = await search.Search("dotnet", new YouTubeQueryOptions { SearchType = YouTubeSearchType.Channel });
+
+        Assert.Single(result.Hits);
+        Assert.Equal("DotNet", result.Hits[0].Title);
+        Assert.Equal("https://www.youtube.com/@dotnet", result.Hits[0].Url);
+        Assert.Equal("Official channel", result.Hits[0].Content);
+        Assert.Equal("1M subscribers", result.Hits[0].Date);
+        Assert.Equal("https://example.com/channel.png", result.Hits[0].Image);
+        Assert.NotNull(handler.LastRequestUri);
+        Assert.Equal("?search_query=dotnet&sp=EgIQAg==", Uri.UnescapeDataString(handler.LastRequestUri!.Query));
+    }
+
+    [Fact]
+    public async Task YouTubeSearch_ParsesPlaylistResults_FromInitialData()
+    {
+        const string html = """
+            <html><body><script>
+            var ytInitialData = {
+              "contents": [{
+                "playlistRenderer": {
+                  "title": {
+                    "simpleText": "NetSearch playlist"
+                  },
+                  "navigationEndpoint": {
+                    "commandMetadata": {
+                      "webCommandMetadata": {
+                        "url": "/playlist?list=PL123"
+                      }
+                    }
+                  },
+                  "thumbnail": {
+                    "thumbnails": [{
+                      "url": "https://example.com/playlist.png"
+                    }]
+                  },
+                  "videoCountText": {
+                    "simpleText": "12 videos"
+                  }
+                }
+              }]
+            };
+            </script></body></html>
+            """;
+
+        var handler = new StubHttpMessageHandler(html);
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://www.youtube.com/results") };
+        var search = new YouTubeSearch(client, Options.Create(new SearchOptions()), NullLogger<YouTubeSearch>.Instance, []);
+
+        var result = await search.Search("dotnet", new YouTubeQueryOptions { SearchType = YouTubeSearchType.Playlist });
+
+        Assert.Single(result.Hits);
+        Assert.Equal("NetSearch playlist", result.Hits[0].Title);
+        Assert.Equal("https://www.youtube.com/playlist?list=PL123", result.Hits[0].Url);
+        Assert.Equal("12 videos", result.Hits[0].Content);
+        Assert.Equal("12 videos", result.Hits[0].Date);
+        Assert.Equal("https://example.com/playlist.png", result.Hits[0].Image);
+        Assert.NotNull(handler.LastRequestUri);
+        Assert.Equal("?search_query=dotnet&sp=EgIQAw==", Uri.UnescapeDataString(handler.LastRequestUri!.Query));
     }
 
     private sealed class StubHttpMessageHandler(string payload) : HttpMessageHandler

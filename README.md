@@ -63,14 +63,14 @@ using NetSearch;
 var googleResult = await google.Search("dotnet", new GoogleQueryOptions
 {
     Page = 0,
-    Site = "learn.microsoft.com",
+    Site = "https://learn.microsoft.com",
     SearchType = GoogleSearchType.Web
 });
 
 var bingResult = await bing.Search("dotnet", new BingQueryOptions
 {
     Page = 0,
-    Site = "learn.microsoft.com",
+    Site = "https://learn.microsoft.com",
     SearchType = BingSearchType.News
 });
 
