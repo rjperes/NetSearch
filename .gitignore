@@ -5,6 +5,8 @@
 /.vs
 /NetSearch/bin
 /NetSearch/obj
+/NetSearch.Tests/bin
+/NetSearch.Tests/obj
 /NetSearchConsole/bin
 /NetSearchConsole/obj
 /publish_nuget.bat

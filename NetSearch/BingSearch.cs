@@ -6,7 +6,7 @@ using System.Text;
 
 namespace NetSearch
 {
-    public enum GoogleSearchType
+    public enum BingSearchType
     {
         Video,
         News,
@@ -14,27 +14,22 @@ namespace NetSearch
         Web
     }
 
-    public class GoogleQueryOptions : QueryOptions
+    public class BingQueryOptions : QueryOptions
     {
-        public GoogleSearchType? SearchType { get; init; }
+        public BingSearchType? SearchType { get; init; }
     }
 
-    public class GoogleSearch : ISearch
+    public class BingSearch : ISearch
     {
-        private class ChromeResultsParser : IResultsParser
+        private class BingResultsParser : IResultsParser
         {
             public Task<bool> TryParse(string response, List<SearchHit> results)
             {
                 var doc = new HtmlDocument();
                 doc.LoadHtml(response);
 
-                var resultsContainer = doc.DocumentNode.SelectSingleNode("//div[@id='search']");
-                if (resultsContainer == null)
-                {
-                    return Task.FromResult(false);
-                }
-
-                var individualResults = resultsContainer.SelectNodes(".//div[@jscontroller]");
+                var resultsContainer = doc.DocumentNode.SelectSingleNode("//ol[@id='b_results']") ?? doc.DocumentNode;
+                var individualResults = resultsContainer.SelectNodes(".//li[contains(@class,'b_algo')]");
                 if (individualResults == null)
                 {
                     return Task.FromResult(false);
@@ -42,50 +37,31 @@ namespace NetSearch
 
                 foreach (var individualResult in individualResults)
                 {
-                    var titleNode = individualResult.SelectSingleNode(".//h3");
-
-                    if (titleNode == null)
+                    var linkNode = individualResult.SelectSingleNode(".//h2/a[@href]");
+                    if (linkNode == null)
                     {
                         continue;
                     }
 
-                    var title = HtmlEntity.DeEntitize(titleNode.InnerText).Trim();
-                    if (string.IsNullOrWhiteSpace(title))
+                    var title = HtmlEntity.DeEntitize(linkNode.InnerText).Trim();
+                    var url = linkNode.GetAttributeValue("href", null);
+                    if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(url))
                     {
                         continue;
                     }
 
-                    var imageNode = individualResult.SelectSingleNode(".//img[@src]");
-                    var image = imageNode?.GetAttributeValue("src", default(string));
+                    var content = HtmlEntity.DeEntitize(individualResult.SelectSingleNode(".//div[contains(@class,'b_caption')]//p")?.InnerText ?? string.Empty).Trim();
+                    var image = individualResult.SelectSingleNode(".//img[@src]")?.GetAttributeValue("src", default(string));
+                    var date = HtmlEntity.DeEntitize(individualResult.SelectSingleNode(".//span[contains(@class,'news_dt')]")?.InnerText ?? string.Empty).Trim();
 
-                    var urlNode = individualResult.SelectSingleNode(".//a[@jsname and @href]");
-                    var url = urlNode?.GetAttributeValue("href", null);
-                    if (string.IsNullOrWhiteSpace(url))
-                    {
-                        continue;
-                    }
-
-                    var contentNodes = individualResult.SelectNodes(".//div[@data-snf and @data-sncf]//div//span");
-
-                    string? date = string.Empty;
-                    string content = string.Empty;
-
-                    if (contentNodes is { Count: > 0 })
-                    {
-                        date = contentNodes.Count > 1 ? HtmlEntity.DeEntitize(contentNodes[1].InnerText).Trim() : string.Empty;
-                        content = contentNodes.Count > 2 ? HtmlEntity.DeEntitize(contentNodes[2].InnerText).Trim() : string.Empty;
-                    }
-
-                    var result = new SearchHit
+                    results.Add(new SearchHit
                     {
                         Title = title,
                         Url = url,
                         Content = content,
                         Image = image,
                         Date = date
-                    };
-
-                    results.Add(result);
+                    });
                 }
 
                 return Task.FromResult(results.Any());
@@ -93,18 +69,17 @@ namespace NetSearch
         }
 
         private readonly HttpClient _httpClient;
-        private readonly ILogger<GoogleSearch> _logger;
-        private readonly List<IResultsParser> _parsers = [new ChromeResultsParser()];
-        private const int ResultsPerPage = 9;
-        private const string Name = "Google";
+        private readonly ILogger<BingSearch> _logger;
+        private readonly List<IResultsParser> _parsers = [new BingResultsParser()];
+        private const int ResultsPerPage = 10;
 
-        public GoogleSearch(HttpClient httpClient, IOptions<SearchOptions> options, ILogger<GoogleSearch> logger, IEnumerable<IResultsParser> parsers)
+        public BingSearch(HttpClient httpClient, IOptions<SearchOptions> options, ILogger<BingSearch> logger, IEnumerable<IResultsParser> parsers)
         {
             ArgumentNullException.ThrowIfNull(httpClient, nameof(httpClient));
 
             _httpClient = httpClient;
             _logger = logger;
-            
+
             if (parsers != null && parsers.Any())
             {
                 _parsers.AddRange(parsers);
@@ -130,8 +105,8 @@ namespace NetSearch
 
         public async Task<SearchResult> Search(string query, QueryOptions options, CancellationToken cancellationToken = default)
         {
-            var requestUrl = new StringBuilder($"?q={Uri.EscapeDataString(query)}");
             var result = new SearchResult();
+            var queryText = new StringBuilder(query);
 
             if (!string.IsNullOrWhiteSpace(options.Site))
             {
@@ -143,37 +118,35 @@ namespace NetSearch
                 }
                 else if (Uri.TryCreate(options.Site, UriKind.Relative, out url))
                 {
-                    throw new InvalidOperationException($"Invalid site '{options.Site}");
+                    throw new InvalidOperationException($"Invalid site '{options.Site}'");
                 }
 
                 _logger.LogDebug($"Setting filtered site to '{site}'");
-                requestUrl.Append($" site:{site}");
+                queryText.Append($" site:{site}");
             }
 
-            if (options is GoogleQueryOptions googleOptions)
+            if (options is BingQueryOptions bingOptions && bingOptions.SearchType != null)
             {
-                if (googleOptions.SearchType != null)
-                {
-                    _logger.LogDebug($"Setting search type to '{googleOptions.SearchType.ToString()!.ToLower()}'");
-                    requestUrl.Append($" {googleOptions.SearchType.ToString()!.ToLower()}");
-                }
+                var searchType = bingOptions.SearchType.Value.ToString().ToLowerInvariant();
+                _logger.LogDebug($"Setting search type to '{searchType}'");
+                queryText.Append($" {searchType}");
             }
+
+            var requestUrl = new StringBuilder($"?q={Uri.EscapeDataString(queryText.ToString())}");
 
             if (options.Size != null)
             {
-                _logger.LogWarning("Size setting not supported by Google");
+                _logger.LogWarning("Size setting not supported by Bing");
             }
 
             if (options.Page != null && options.Page.Value != 0)
             {
-                var page = (options.Page.Value * ResultsPerPage) + options.Page.Value;
+                var page = (options.Page.Value * ResultsPerPage) + 1;
                 _logger.LogDebug($"Setting results start to '{page}'");
-                requestUrl.Append($"&start={page}");
+                requestUrl.Append($"&first={page}");
             }
 
-            var escapedRequestUrl = requestUrl.ToString();
-
-            var response = await _httpClient.GetStringAsync(escapedRequestUrl, cancellationToken);
+            var response = await _httpClient.GetStringAsync(requestUrl.ToString(), cancellationToken);
 
             foreach (var parser in _parsers)
             {
