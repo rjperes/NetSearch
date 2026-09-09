@@ -47,9 +47,7 @@ namespace NetSearch
             ArgumentNullException.ThrowIfNull(services, nameof(services));
             ArgumentNullException.ThrowIfNull(options, nameof(options));
 
-            services.AddSingleton(Options.Create(options));
-
-            return AddBingSearch(services);
+            return AddBingSearch(services, Options.Create(options));
         }
 
         public static IServiceCollection AddBingSearch(this IServiceCollection services, Action<SearchOptions> options)
@@ -57,14 +55,18 @@ namespace NetSearch
             ArgumentNullException.ThrowIfNull(services, nameof(services));
             ArgumentNullException.ThrowIfNull(options, nameof(options));
 
-            services.Configure(options);
+            var configuredOptions = new SearchOptions();
+            options(configuredOptions);
 
-            return AddBingSearch(services);
+            return AddBingSearch(services, Options.Create(configuredOptions));
         }
 
-        public static IServiceCollection AddBingSearch(this IServiceCollection services)
+        public static IServiceCollection AddBingSearch(this IServiceCollection services) => AddBingSearch(services, Options.Create(new SearchOptions()));
+
+        private static IServiceCollection AddBingSearch(IServiceCollection services, IOptions<SearchOptions> options)
         {
             ArgumentNullException.ThrowIfNull(services, nameof(services));
+            ArgumentNullException.ThrowIfNull(options, nameof(options));
 
             services.AddHttpClient<ISearch, BingSearch>("Bing", static client =>
             {
@@ -73,7 +75,8 @@ namespace NetSearch
 
             services.AddKeyedTransient<ISearch>("Bing", (sp, key) =>
             {
-                return ActivatorUtilities.CreateInstance<BingSearch>(sp);
+                var httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("Bing");
+                return ActivatorUtilities.CreateInstance<BingSearch>(sp, httpClient, options);
             });
 
             return services;

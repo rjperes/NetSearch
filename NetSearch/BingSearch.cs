@@ -105,8 +105,8 @@ namespace NetSearch
 
         public async Task<SearchResult> Search(string query, QueryOptions options, CancellationToken cancellationToken = default)
         {
-            var requestUrl = new StringBuilder($"?q={Uri.EscapeDataString(query)}");
             var result = new SearchResult();
+            var queryText = new StringBuilder(query);
 
             if (!string.IsNullOrWhiteSpace(options.Site))
             {
@@ -118,18 +118,21 @@ namespace NetSearch
                 }
                 else if (Uri.TryCreate(options.Site, UriKind.Relative, out url))
                 {
-                    throw new InvalidOperationException($"Invalid site '{options.Site}");
+                    throw new InvalidOperationException($"Invalid site '{options.Site}'");
                 }
 
                 _logger.LogDebug($"Setting filtered site to '{site}'");
-                requestUrl.Append($" site:{site}");
+                queryText.Append($" site:{site}");
             }
 
             if (options is BingQueryOptions bingOptions && bingOptions.SearchType != null)
             {
-                _logger.LogDebug($"Setting search type to '{bingOptions.SearchType.ToString()!.ToLower()}'");
-                requestUrl.Append($" {bingOptions.SearchType.ToString()!.ToLower()}");
+                var searchType = bingOptions.SearchType.Value.ToString().ToLowerInvariant();
+                _logger.LogDebug($"Setting search type to '{searchType}'");
+                queryText.Append($" {searchType}");
             }
+
+            var requestUrl = new StringBuilder($"?q={Uri.EscapeDataString(queryText.ToString())}");
 
             if (options.Size != null)
             {
