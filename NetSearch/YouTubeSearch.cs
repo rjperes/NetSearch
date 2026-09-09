@@ -6,96 +6,80 @@ using System.Text;
 
 namespace NetSearch
 {
-    public enum GoogleSearchType
+    public enum YouTubeSearchType
     {
         Video,
-        News,
-        Images,
-        Web
+        Channel,
+        Playlist
     }
 
-    public class GoogleQueryOptions : QueryOptions
+    public class YouTubeQueryOptions : QueryOptions
     {
-        public GoogleSearchType? SearchType { get; init; }
+        public YouTubeSearchType? SearchType { get; init; }
     }
 
-    public class GoogleSearch : ISearch
+    public class YouTubeSearch : ISearch
     {
-        private class ChromeResultsParser : IResultsParser
+        private class YouTubeResultsParser : IResultsParser
         {
+            private const string YouTubeUrlPrefix = "https://www.youtube.com";
+
             public Task<bool> TryParse(string response, List<SearchHit> results)
             {
                 var doc = new HtmlDocument();
                 doc.LoadHtml(response);
 
-                var resultsContainer = doc.DocumentNode.SelectSingleNode("//div[@id='search']") ?? doc.DocumentNode;
-                var individualResults = resultsContainer.SelectNodes(".//div[@jscontroller] | .//article[.//h3]");
-                if (individualResults == null)
+                var resultNodes = doc.DocumentNode.SelectNodes("//ytd-video-renderer | //ytd-channel-renderer | //ytd-playlist-renderer");
+                if (resultNodes == null)
                 {
                     return Task.FromResult(false);
                 }
 
-                foreach (var individualResult in individualResults)
+                foreach (var resultNode in resultNodes)
                 {
-                    var titleNode = individualResult.SelectSingleNode(".//h3");
-
-                    if (titleNode == null)
+                    var linkNode = resultNode.SelectSingleNode(".//a[@id='video-title' and @href] | .//a[@id='main-link' and @href] | .//a[@href][.//*[@id='text']]");
+                    if (linkNode == null)
                     {
                         continue;
                     }
 
-                    var title = HtmlEntity.DeEntitize(titleNode.InnerText).Trim();
-                    if (string.IsNullOrWhiteSpace(title))
+                    var title = HtmlEntity.DeEntitize(linkNode.GetAttributeValue("title", linkNode.InnerText) ?? string.Empty).Trim();
+                    var url = linkNode.GetAttributeValue("href", null);
+                    if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(url))
                     {
                         continue;
                     }
 
-                    var imageNode = individualResult.SelectSingleNode(".//img[@src]");
-                    var image = imageNode?.GetAttributeValue("src", default(string));
+                    url = NormalizeUrl(url);
+                    var content = HtmlEntity.DeEntitize(resultNode.SelectSingleNode(".//*[@id='description-text' or @id='description-snippet']")?.InnerText ?? string.Empty).Trim();
+                    var image = resultNode.SelectSingleNode(".//img[@src]")?.GetAttributeValue("src", default(string));
+                    var date = HtmlEntity.DeEntitize(resultNode.SelectSingleNode(".//span[contains(@class,'inline-metadata-item')] | .//*[@id='subscribers'] | .//*[@id='video-count']")?.InnerText ?? string.Empty).Trim();
 
-                    var urlNode = individualResult.SelectSingleNode(".//a[@jsname and @href] | .//a[@href]");
-                    var url = urlNode?.GetAttributeValue("href", null);
-                    if (string.IsNullOrWhiteSpace(url))
-                    {
-                        continue;
-                    }
-
-                    var contentNodes = individualResult.SelectNodes(".//div[@data-snf and @data-sncf]//div//span");
-
-                    string? date = string.Empty;
-                    string content = string.Empty;
-
-                    if (contentNodes is { Count: > 0 })
-                    {
-                        date = contentNodes.Count > 1 ? HtmlEntity.DeEntitize(contentNodes[1].InnerText).Trim() : string.Empty;
-                        content = contentNodes.Count > 2 ? HtmlEntity.DeEntitize(contentNodes[2].InnerText).Trim() : string.Empty;
-                    }
-
-                    var result = new SearchHit
+                    results.Add(new SearchHit
                     {
                         Title = title,
                         Url = url,
                         Content = content,
                         Image = image,
                         Date = date
-                    };
-
-                    results.Add(result);
+                    });
                 }
 
                 return Task.FromResult(results.Any());
             }
+
+            private static string NormalizeUrl(string url)
+                => Uri.TryCreate(url, UriKind.Relative, out _) ? $"{YouTubeUrlPrefix}{url}" : url;
         }
 
         private readonly HttpClient _httpClient;
-        private readonly ILogger<GoogleSearch> _logger;
-        private readonly List<IResultsParser> _parsers = [new ChromeResultsParser()];
-        private const int ResultsPerPage = 9;
-        private const string VideoSearchFilter = "vid";
-        private const string NewsSearchFilter = "nws";
-        private const string ImagesSearchFilter = "isch";
+        private readonly ILogger<YouTubeSearch> _logger;
+        private readonly List<IResultsParser> _parsers = [new YouTubeResultsParser()];
+        private const string VideoSearchFilter = "EgIQAQ==";
+        private const string ChannelSearchFilter = "EgIQAg==";
+        private const string PlaylistSearchFilter = "EgIQAw==";
 
-        public GoogleSearch(HttpClient httpClient, IOptions<SearchOptions> options, ILogger<GoogleSearch> logger, IEnumerable<IResultsParser> parsers)
+        public YouTubeSearch(HttpClient httpClient, IOptions<SearchOptions> options, ILogger<YouTubeSearch> logger, IEnumerable<IResultsParser> parsers)
         {
             ArgumentNullException.ThrowIfNull(httpClient, nameof(httpClient));
 
@@ -148,34 +132,26 @@ namespace NetSearch
                 queryText.Append($" site:{site}");
             }
 
-            if (options is GoogleQueryOptions googleOptions && googleOptions.SearchType != null)
+            if (options is YouTubeQueryOptions youtubeOptions && youtubeOptions.SearchType != null)
             {
-                var searchType = googleOptions.SearchType.Value;
+                var searchType = youtubeOptions.SearchType.Value;
                 _logger.LogDebug($"Setting search type to '{searchType}'");
-                var searchFilter = GetSearchFilter(searchType);
-                if (!string.IsNullOrWhiteSpace(searchFilter))
-                {
-                    requestUrl.Append($"&tbm={searchFilter}");
-                }
+                requestUrl.Append($"&sp={Uri.EscapeDataString(GetSearchFilter(searchType))}");
             }
 
-            requestUrl.Insert(0, $"?q={Uri.EscapeDataString(queryText.ToString())}");
+            requestUrl.Insert(0, $"?search_query={Uri.EscapeDataString(queryText.ToString())}");
 
             if (options.Size != null)
             {
-                _logger.LogWarning("Size setting not supported by Google");
+                _logger.LogWarning("Size setting not supported by YouTube");
             }
 
-            if (options.Page != null && options.Page.Value != 0)
+            if (options.Page != null)
             {
-                var page = (options.Page.Value * ResultsPerPage) + options.Page.Value;
-                _logger.LogDebug($"Setting results start to '{page}'");
-                requestUrl.Append($"&start={page}");
+                _logger.LogWarning("Page setting not supported by YouTube");
             }
 
-            var escapedRequestUrl = requestUrl.ToString();
-
-            var response = await _httpClient.GetStringAsync(escapedRequestUrl, cancellationToken);
+            var response = await _httpClient.GetStringAsync(requestUrl.ToString(), cancellationToken);
 
             foreach (var parser in _parsers)
             {
@@ -195,13 +171,12 @@ namespace NetSearch
             return result;
         }
 
-        private static string? GetSearchFilter(GoogleSearchType searchType)
+        private static string GetSearchFilter(YouTubeSearchType searchType)
             => searchType switch
             {
-                GoogleSearchType.Web => null,
-                GoogleSearchType.Video => VideoSearchFilter,
-                GoogleSearchType.News => NewsSearchFilter,
-                GoogleSearchType.Images => ImagesSearchFilter,
+                YouTubeSearchType.Video => VideoSearchFilter,
+                YouTubeSearchType.Channel => ChannelSearchFilter,
+                YouTubeSearchType.Playlist => PlaylistSearchFilter,
                 _ => throw new ArgumentOutOfRangeException(nameof(searchType), searchType, null)
             };
     }
