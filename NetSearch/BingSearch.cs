@@ -72,6 +72,10 @@ namespace NetSearch
         private readonly ILogger<BingSearch> _logger;
         private readonly List<IResultsParser> _parsers = [new BingResultsParser()];
         private const int ResultsPerPage = 10;
+        private const string WebSearchPath = "/search";
+        private const string VideoSearchPath = "/videos/search";
+        private const string NewsSearchPath = "/news/search";
+        private const string ImagesSearchPath = "/images/search";
 
         public BingSearch(HttpClient httpClient, IOptions<SearchOptions> options, ILogger<BingSearch> logger, IEnumerable<IResultsParser> parsers)
         {
@@ -107,6 +111,7 @@ namespace NetSearch
         {
             var result = new SearchResult();
             var queryText = new StringBuilder(query);
+            var requestPath = WebSearchPath;
 
             if (!string.IsNullOrWhiteSpace(options.Site))
             {
@@ -127,12 +132,12 @@ namespace NetSearch
 
             if (options is BingQueryOptions bingOptions && bingOptions.SearchType != null)
             {
-                var searchType = bingOptions.SearchType.Value.ToString().ToLowerInvariant();
+                var searchType = bingOptions.SearchType.Value;
                 _logger.LogDebug($"Setting search type to '{searchType}'");
-                queryText.Append($" {searchType}");
+                requestPath = GetSearchPath(searchType);
             }
 
-            var requestUrl = new StringBuilder($"?q={Uri.EscapeDataString(queryText.ToString())}");
+            var requestUrl = new StringBuilder($"{requestPath}?q={Uri.EscapeDataString(queryText.ToString())}");
 
             if (options.Size != null)
             {
@@ -165,5 +170,15 @@ namespace NetSearch
 
             return result;
         }
+
+        private static string GetSearchPath(BingSearchType searchType)
+            => searchType switch
+            {
+                BingSearchType.Web => WebSearchPath,
+                BingSearchType.Video => VideoSearchPath,
+                BingSearchType.News => NewsSearchPath,
+                BingSearchType.Images => ImagesSearchPath,
+                _ => throw new ArgumentOutOfRangeException(nameof(searchType), searchType, null)
+            };
     }
 }

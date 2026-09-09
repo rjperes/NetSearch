@@ -9,7 +9,7 @@ namespace NetSearch.Tests;
 public class SearchTests
 {
     [Fact]
-    public async Task GoogleSearch_ParsesResults_WithHtmlAgilityPack()
+    public async Task GoogleSearch_ParsesResults_AndBuildsExpectedQuery()
     {
         const string html = """
             <html><body>
@@ -29,8 +29,14 @@ public class SearchTests
         var handler = new StubHttpMessageHandler(html);
         var client = new HttpClient(handler) { BaseAddress = new Uri("https://google.com/search") };
         var search = new GoogleSearch(client, Options.Create(new SearchOptions()), NullLogger<GoogleSearch>.Instance, []);
+        var options = new GoogleQueryOptions
+        {
+            Page = 1,
+            Site = "https://contoso.com",
+            SearchType = GoogleSearchType.News
+        };
 
-        var result = await search.Search("any");
+        var result = await search.Search("dotnet", options);
 
         Assert.Single(result.Hits);
         Assert.Equal("Result title", result.Hits[0].Title);
@@ -38,6 +44,8 @@ public class SearchTests
         Assert.Equal("Result content", result.Hits[0].Content);
         Assert.Equal("2024-08-01", result.Hits[0].Date);
         Assert.Equal("https://example.com/image.png", result.Hits[0].Image);
+        Assert.NotNull(handler.LastRequestUri);
+        Assert.Equal("?q=dotnet site:contoso.com&tbm=nws&start=10", Uri.UnescapeDataString(handler.LastRequestUri!.Query));
     }
 
     [Fact]
@@ -75,7 +83,7 @@ public class SearchTests
         Assert.Equal("2024-09-01", result.Hits[0].Date);
         Assert.Equal("https://bing.example.com/image.png", result.Hits[0].Image);
         Assert.NotNull(handler.LastRequestUri);
-        Assert.Equal("?q=dotnet site:contoso.com news&first=11", Uri.UnescapeDataString(handler.LastRequestUri!.Query));
+        Assert.Equal("/news/search?q=dotnet site:contoso.com&first=11", Uri.UnescapeDataString(handler.LastRequestUri!.PathAndQuery));
     }
 
     [Fact]

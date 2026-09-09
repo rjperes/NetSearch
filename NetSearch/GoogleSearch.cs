@@ -96,7 +96,9 @@ namespace NetSearch
         private readonly ILogger<GoogleSearch> _logger;
         private readonly List<IResultsParser> _parsers = [new ChromeResultsParser()];
         private const int ResultsPerPage = 9;
-        private const string Name = "Google";
+        private const string VideoSearchFilter = "vid";
+        private const string NewsSearchFilter = "nws";
+        private const string ImagesSearchFilter = "isch";
 
         public GoogleSearch(HttpClient httpClient, IOptions<SearchOptions> options, ILogger<GoogleSearch> logger, IEnumerable<IResultsParser> parsers)
         {
@@ -130,8 +132,9 @@ namespace NetSearch
 
         public async Task<SearchResult> Search(string query, QueryOptions options, CancellationToken cancellationToken = default)
         {
-            var requestUrl = new StringBuilder($"?q={Uri.EscapeDataString(query)}");
             var result = new SearchResult();
+            var queryText = new StringBuilder(query);
+            var requestUrl = new StringBuilder();
 
             if (!string.IsNullOrWhiteSpace(options.Site))
             {
@@ -143,21 +146,25 @@ namespace NetSearch
                 }
                 else if (Uri.TryCreate(options.Site, UriKind.Relative, out url))
                 {
-                    throw new InvalidOperationException($"Invalid site '{options.Site}");
+                    throw new InvalidOperationException($"Invalid site '{options.Site}'");
                 }
 
                 _logger.LogDebug($"Setting filtered site to '{site}'");
-                requestUrl.Append($" site:{site}");
+                queryText.Append($" site:{site}");
             }
 
-            if (options is GoogleQueryOptions googleOptions)
+            if (options is GoogleQueryOptions googleOptions && googleOptions.SearchType != null)
             {
-                if (googleOptions.SearchType != null)
+                var searchType = googleOptions.SearchType.Value;
+                _logger.LogDebug($"Setting search type to '{searchType}'");
+                var searchFilter = GetSearchFilter(searchType);
+                if (!string.IsNullOrWhiteSpace(searchFilter))
                 {
-                    _logger.LogDebug($"Setting search type to '{googleOptions.SearchType.ToString()!.ToLower()}'");
-                    requestUrl.Append($" {googleOptions.SearchType.ToString()!.ToLower()}");
+                    requestUrl.Append($"&tbm={searchFilter}");
                 }
             }
+
+            requestUrl.Insert(0, $"?q={Uri.EscapeDataString(queryText.ToString())}");
 
             if (options.Size != null)
             {
@@ -192,5 +199,15 @@ namespace NetSearch
 
             return result;
         }
+
+        private static string? GetSearchFilter(GoogleSearchType searchType)
+            => searchType switch
+            {
+                GoogleSearchType.Web => null,
+                GoogleSearchType.Video => VideoSearchFilter,
+                GoogleSearchType.News => NewsSearchFilter,
+                GoogleSearchType.Images => ImagesSearchFilter,
+                _ => throw new ArgumentOutOfRangeException(nameof(searchType), searchType, null)
+            };
     }
 }
