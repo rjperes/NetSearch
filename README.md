@@ -76,7 +76,7 @@ var bingResult = await bing.Search("dotnet", new BingQueryOptions
 
 var youtubeResult = await youtube.Search("dotnet", new YouTubeQueryOptions
 {
-    Site = "learn.microsoft.com",
+    Site = "https://learn.microsoft.com",
     SearchType = YouTubeSearchType.Video
 });
 ```

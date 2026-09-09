@@ -8,9 +8,7 @@ namespace NetSearch
 {
     public enum YouTubeSearchType
     {
-        Video,
-        Channel,
-        Playlist
+        Video
     }
 
     public class YouTubeQueryOptions : QueryOptions
