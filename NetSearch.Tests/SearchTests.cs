@@ -78,6 +78,41 @@ public class SearchTests
         Assert.Equal("?q=dotnet site:contoso.com news&first=11", Uri.UnescapeDataString(handler.LastRequestUri!.Query));
     }
 
+    [Fact]
+    public async Task YouTubeSearch_ParsesResults_AndBuildsExpectedQuery()
+    {
+        const string html = """
+            <html><body>
+              <ytd-video-renderer class="style-scope ytd-item-section-renderer">
+                <a id="video-title" href="/watch?v=123" title="YouTube title"></a>
+                <img src="https://img.youtube.com/vi/123/default.jpg" />
+                <span class="inline-metadata-item style-scope ytd-video-meta-block">1 day ago</span>
+                <div id="description-text">YouTube content</div>
+              </ytd-video-renderer>
+            </body></html>
+            """;
+
+        var handler = new StubHttpMessageHandler(html);
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://www.youtube.com/results") };
+        var search = new YouTubeSearch(client, Options.Create(new SearchOptions()), NullLogger<YouTubeSearch>.Instance, []);
+        var options = new YouTubeQueryOptions
+        {
+            Site = "https://contoso.com",
+            SearchType = YouTubeSearchType.Video
+        };
+
+        var result = await search.Search("dotnet", options);
+
+        Assert.Single(result.Hits);
+        Assert.Equal("YouTube title", result.Hits[0].Title);
+        Assert.Equal("https://www.youtube.com/watch?v=123", result.Hits[0].Url);
+        Assert.Equal("YouTube content", result.Hits[0].Content);
+        Assert.Equal("1 day ago", result.Hits[0].Date);
+        Assert.Equal("https://img.youtube.com/vi/123/default.jpg", result.Hits[0].Image);
+        Assert.NotNull(handler.LastRequestUri);
+        Assert.Equal("?search_query=dotnet site:contoso.com video", Uri.UnescapeDataString(handler.LastRequestUri!.Query));
+    }
+
     private sealed class StubHttpMessageHandler(string payload) : HttpMessageHandler
     {
         public Uri? LastRequestUri { get; private set; }

@@ -1,5 +1,5 @@
 # Search.NET
-A .NET proxy for search engines with Google and Bing implementations.
+A .NET proxy for search engines with Google, Bing, and YouTube implementations.
 
 ## Usage
 
@@ -42,10 +42,17 @@ services.AddBingSearch(options =>
     options.AcceptLanguages("en");
 });
 
+services.AddYouTubeSearch(options =>
+{
+    options.SetChromeUserAgent();
+    options.AcceptLanguages("en");
+});
+
 var provider = services.BuildServiceProvider();
 
 var google = provider.GetRequiredKeyedService<ISearch>("Google");
 var bing = provider.GetRequiredKeyedService<ISearch>("Bing");
+var youtube = provider.GetRequiredKeyedService<ISearch>("YouTube");
 ```
 
 ### Query options
@@ -65,5 +72,11 @@ var bingResult = await bing.Search("dotnet", new BingQueryOptions
     Page = 0,
     Site = "learn.microsoft.com",
     SearchType = BingSearchType.News
+});
+
+var youtubeResult = await youtube.Search("dotnet", new YouTubeQueryOptions
+{
+    Site = "learn.microsoft.com",
+    SearchType = YouTubeSearchType.Video
 });
 ```

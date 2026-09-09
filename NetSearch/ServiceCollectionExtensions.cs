@@ -81,5 +81,45 @@ namespace NetSearch
 
             return services;
         }
+
+        public static IServiceCollection AddYouTubeSearch(this IServiceCollection services, SearchOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(services, nameof(services));
+            ArgumentNullException.ThrowIfNull(options, nameof(options));
+
+            return AddYouTubeSearch(services, Options.Create(options));
+        }
+
+        public static IServiceCollection AddYouTubeSearch(this IServiceCollection services, Action<SearchOptions> options)
+        {
+            ArgumentNullException.ThrowIfNull(services, nameof(services));
+            ArgumentNullException.ThrowIfNull(options, nameof(options));
+
+            var configuredOptions = new SearchOptions();
+            options(configuredOptions);
+
+            return AddYouTubeSearch(services, Options.Create(configuredOptions));
+        }
+
+        public static IServiceCollection AddYouTubeSearch(this IServiceCollection services) => AddYouTubeSearch(services, Options.Create(new SearchOptions()));
+
+        private static IServiceCollection AddYouTubeSearch(IServiceCollection services, IOptions<SearchOptions> options)
+        {
+            ArgumentNullException.ThrowIfNull(services, nameof(services));
+            ArgumentNullException.ThrowIfNull(options, nameof(options));
+
+            services.AddHttpClient<ISearch, YouTubeSearch>("YouTube", static client =>
+            {
+                client.BaseAddress = new("https://www.youtube.com/results");
+            }).RegisterKeyedService().AddDefaultLogger();
+
+            services.AddKeyedTransient<ISearch>("YouTube", (sp, key) =>
+            {
+                var httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("YouTube");
+                return ActivatorUtilities.CreateInstance<YouTubeSearch>(sp, httpClient, options);
+            });
+
+            return services;
+        }
     }
 }
