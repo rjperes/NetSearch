@@ -13,15 +13,15 @@ public class SearchTests
     {
         const string html = """
             <html><body>
-              <div id="search">
-                <div jscontroller="abc">
+              <div>
+                <article jscontroller="abc">
                   <h3>Result title</h3>
                   <a jsname="N" href="https://example.com/page"></a>
                   <img src="https://example.com/image.png" />
                   <div data-snf="1" data-sncf="1">
                     <div><span>ignored</span><span>2024-08-01</span><span>Result content</span></div>
                   </div>
-                </div>
+                </article>
               </div>
             </body></html>
             """;

@@ -28,13 +28,8 @@ namespace NetSearch
                 var doc = new HtmlDocument();
                 doc.LoadHtml(response);
 
-                var resultsContainer = doc.DocumentNode.SelectSingleNode("//div[@id='search']");
-                if (resultsContainer == null)
-                {
-                    return Task.FromResult(false);
-                }
-
-                var individualResults = resultsContainer.SelectNodes(".//div[@jscontroller]");
+                var resultsContainer = doc.DocumentNode.SelectSingleNode("//div[@id='search']") ?? doc.DocumentNode;
+                var individualResults = resultsContainer.SelectNodes(".//div[@jscontroller] | .//article[.//h3]");
                 if (individualResults == null)
                 {
                     return Task.FromResult(false);
@@ -58,7 +53,7 @@ namespace NetSearch
                     var imageNode = individualResult.SelectSingleNode(".//img[@src]");
                     var image = imageNode?.GetAttributeValue("src", default(string));
 
-                    var urlNode = individualResult.SelectSingleNode(".//a[@jsname and @href]");
+                    var urlNode = individualResult.SelectSingleNode(".//a[@jsname and @href] | .//a[@href]");
                     var url = urlNode?.GetAttributeValue("href", null);
                     if (string.IsNullOrWhiteSpace(url))
                     {
