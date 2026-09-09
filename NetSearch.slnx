@@ -1,0 +1,14 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/Solution Items/">
+    <File Path=".gitignore" />
+    <File Path="README.md" />
+  </Folder>
+  <Project Path="NetSearch.Tests/NetSearch.Tests.csproj" />
+  <Project Path="NetSearch/NetSearch.csproj" />
+  <Project Path="NetSearchConsole/NetSearchConsole.csproj" />
+</Solution>
