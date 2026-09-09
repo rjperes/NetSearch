@@ -21,80 +21,8 @@ namespace NetSearch
 
     public class GoogleSearch : ISearch
     {
-        private class ChromeResultsParser : IResultsParser
-        {
-            public Task<bool> TryParse(string response, List<SearchHit> results)
-            {
-                var doc = new HtmlDocument();
-                doc.LoadHtml(response);
-
-                var resultsContainer = doc.DocumentNode.SelectSingleNode("//div[@id='search']");
-                if (resultsContainer == null)
-                {
-                    return Task.FromResult(false);
-                }
-
-                var individualResults = resultsContainer.SelectNodes(".//div[@jscontroller]");
-                if (individualResults == null)
-                {
-                    return Task.FromResult(false);
-                }
-
-                foreach (var individualResult in individualResults)
-                {
-                    var titleNode = individualResult.SelectSingleNode(".//h3");
-
-                    if (titleNode == null)
-                    {
-                        continue;
-                    }
-
-                    var title = HtmlEntity.DeEntitize(titleNode.InnerText).Trim();
-                    if (string.IsNullOrWhiteSpace(title))
-                    {
-                        continue;
-                    }
-
-                    var imageNode = individualResult.SelectSingleNode(".//img[@src]");
-                    var image = imageNode?.GetAttributeValue("src", default(string));
-
-                    var urlNode = individualResult.SelectSingleNode(".//a[@jsname and @href]");
-                    var url = urlNode?.GetAttributeValue("href", null);
-                    if (string.IsNullOrWhiteSpace(url))
-                    {
-                        continue;
-                    }
-
-                    var contentNodes = individualResult.SelectNodes(".//div[@data-snf and @data-sncf]//div//span");
-
-                    string? date = string.Empty;
-                    string content = string.Empty;
-
-                    if (contentNodes is { Count: > 0 })
-                    {
-                        date = contentNodes.Count > 1 ? HtmlEntity.DeEntitize(contentNodes[1].InnerText).Trim() : string.Empty;
-                        content = contentNodes.Count > 2 ? HtmlEntity.DeEntitize(contentNodes[2].InnerText).Trim() : string.Empty;
-                    }
-
-                    var result = new SearchHit
-                    {
-                        Title = title,
-                        Url = url,
-                        Content = content,
-                        Image = image,
-                        Date = date
-                    };
-
-                    results.Add(result);
-                }
-
-                return Task.FromResult(results.Any());
-            }
-        }
-
         private readonly HttpClient _httpClient;
         private readonly ILogger<GoogleSearch> _logger;
-        private readonly List<IResultsParser> _parsers = [new ChromeResultsParser()];
         private const int ResultsPerPage = 9;
         private const string Name = "Google";
 
@@ -104,11 +32,6 @@ namespace NetSearch
 
             _httpClient = httpClient;
             _logger = logger;
-            
-            if (parsers != null && parsers.Any())
-            {
-                _parsers.AddRange(parsers);
-            }
 
             if (options?.Value != null)
             {
@@ -175,20 +98,7 @@ namespace NetSearch
 
             var response = await _httpClient.GetStringAsync(escapedRequestUrl, cancellationToken);
 
-            foreach (var parser in _parsers)
-            {
-                try
-                {
-                    if (await parser.TryParse(response, result.Hits))
-                    {
-                        break;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, $"An error occurred while parsing the response in {parser}");
-                }
-            }
+            //TODO: implement this
 
             return result;
         }
