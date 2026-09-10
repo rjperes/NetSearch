@@ -93,7 +93,7 @@ public class SearchTests
             <html><body>
               <div id="search">
                 <div>
-                  <a href="/url?q=https%3A%2F%2Flearn.microsoft.com%2Fdotnet&sa=U">
+                  <a href="/url?q=https%3A%2F%2Flearn.microsoft.com%2Fdotnet%3Fq%3Dhello+world&sa=U">
                     <h3>.NET documentation</h3>
                   </a>
                   <div data-snf="1" data-sncf="1">
@@ -111,7 +111,7 @@ public class SearchTests
         var result = await search.Search("dotnet");
 
         Assert.Single(result.Hits);
-        Assert.Equal("https://learn.microsoft.com/dotnet", result.Hits[0].Url);
+        Assert.Equal("https://learn.microsoft.com/dotnet?q=hello world", result.Hits[0].Url);
         Assert.Equal(".NET documentation", result.Hits[0].Title);
     }
 

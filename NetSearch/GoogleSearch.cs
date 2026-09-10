@@ -159,7 +159,7 @@ namespace NetSearch
                     }
 
                     var currentValue = separator >= 0 ? pair[(separator + 1)..] : string.Empty;
-                    value = Uri.UnescapeDataString(currentValue);
+                    value = Uri.UnescapeDataString(currentValue.Replace("+", "%20", StringComparison.Ordinal));
                     return !string.IsNullOrWhiteSpace(value);
                 }
 
