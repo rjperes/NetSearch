@@ -80,8 +80,14 @@ namespace NetSearch
                     return;
                 }
 
-                using var document = JsonDocument.Parse(initialDataJson);
-                TraverseNode(document.RootElement, results);
+                try
+                {
+                    using var document = JsonDocument.Parse(initialDataJson);
+                    TraverseNode(document.RootElement, results);
+                }
+                catch (JsonException)
+                {
+                }
             }
 
             private static bool TryExtractInitialDataJson(string response, out string initialDataJson)
