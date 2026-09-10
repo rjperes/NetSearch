@@ -118,6 +118,78 @@ public class SearchTests
     }
 
     [Fact]
+    public async Task GoogleSearch_ParsesResults_FromIndividualContainers_Only()
+    {
+        const string html = """
+            <html><body>
+              <div id="search">
+                <div class="group">
+                  <div>
+                    <a href="https://example.com/one"><h3>First result</h3></a>
+                  </div>
+                  <div>
+                    <a href="https://example.com/two"><h3>Second result</h3></a>
+                    <img src="https://example.com/two.png" />
+                    <div data-snf="1" data-sncf="1">
+                      <div><span>ignored</span><span>2025-02-02</span><span>Second content</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </body></html>
+            """;
+
+        var handler = new StubHttpMessageHandler(html);
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://google.com/search") };
+        var search = new GoogleSearch(client, Options.Create(new SearchOptions()), NullLogger<GoogleSearch>.Instance, []);
+
+        var result = await search.Search("dotnet");
+
+        Assert.Collection(result.Hits,
+            hit =>
+            {
+                Assert.Equal("First result", hit.Title);
+                Assert.Equal("https://example.com/one", hit.Url);
+                Assert.Equal(string.Empty, hit.Content);
+                Assert.Equal(string.Empty, hit.Date);
+                Assert.Null(hit.Image);
+            },
+            hit =>
+            {
+                Assert.Equal("Second result", hit.Title);
+                Assert.Equal("https://example.com/two", hit.Url);
+                Assert.Equal("Second content", hit.Content);
+                Assert.Equal("2025-02-02", hit.Date);
+                Assert.Equal("https://example.com/two.png", hit.Image);
+            });
+    }
+
+    [Fact]
+    public async Task GoogleSearch_ParsesResults_WithMalformedGoogleRedirectUrls()
+    {
+        const string html = """
+            <html><body>
+              <div id="search">
+                <div>
+                  <a href="/url?q=https%3A%2F%2Fexample.com%2Fbad%ZZ+value&sa=U">
+                    <h3>Malformed redirect</h3>
+                  </a>
+                </div>
+              </div>
+            </body></html>
+            """;
+
+        var handler = new StubHttpMessageHandler(html);
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://google.com/search") };
+        var search = new GoogleSearch(client, Options.Create(new SearchOptions()), NullLogger<GoogleSearch>.Instance, []);
+
+        var result = await search.Search("dotnet");
+
+        Assert.Single(result.Hits);
+        Assert.Equal("https://example.com/bad%ZZ value", result.Hits[0].Url);
+    }
+
+    [Fact]
     public async Task BingSearch_ParsesResults_FromFallbackListItemSelector()
     {
         const string html = """

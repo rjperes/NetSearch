@@ -2,6 +2,7 @@ using HtmlAgilityPack;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
+using System.Net;
 using System.Text;
 
 namespace NetSearch
@@ -31,7 +32,7 @@ namespace NetSearch
                 doc.LoadHtml(response);
 
                 var resultsContainer = doc.DocumentNode.SelectSingleNode("//div[@id='search']") ?? doc.DocumentNode;
-                var individualResults = resultsContainer.SelectNodes(".//article[.//h3] | .//a[@href][.//h3] | .//div[.//a[@href] and .//h3]");
+                var individualResults = resultsContainer.SelectNodes(".//article[.//h3] | .//a[@href][.//h3] | .//div[./a[@href][./h3] and not(@id='search')]");
                 if (individualResults == null)
                 {
                     return Task.FromResult(false);
@@ -159,7 +160,7 @@ namespace NetSearch
                     }
 
                     var currentValue = separator >= 0 ? pair[(separator + 1)..] : string.Empty;
-                    value = Uri.UnescapeDataString(currentValue.Replace("+", "%20", StringComparison.Ordinal));
+                    value = WebUtility.UrlDecode(currentValue);
                     return !string.IsNullOrWhiteSpace(value);
                 }
 

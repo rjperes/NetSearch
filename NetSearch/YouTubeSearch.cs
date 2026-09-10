@@ -90,6 +90,7 @@ namespace NetSearch
                 }
                 catch (JsonException)
                 {
+                    // Ignore malformed ytInitialData payloads and keep the HTML-only parse result.
                 }
             }
 
