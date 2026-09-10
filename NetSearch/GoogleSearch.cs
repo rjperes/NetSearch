@@ -2,6 +2,7 @@ using HtmlAgilityPack;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
+using Microsoft.Playwright;
 using System.Net;
 using System.Text;
 
@@ -168,6 +169,7 @@ namespace NetSearch
             }
         }
 
+        private const string GoogleRedirectPath = "/url";
         private readonly HttpClient _httpClient;
         private readonly ILogger<GoogleSearch> _logger;
         private readonly List<IResultsParser> _parsers = [new ChromeResultsParser()];
@@ -179,6 +181,7 @@ namespace NetSearch
         public GoogleSearch(HttpClient httpClient, IOptions<SearchOptions> options, ILogger<GoogleSearch> logger, IEnumerable<IResultsParser> parsers)
         {
             ArgumentNullException.ThrowIfNull(httpClient, nameof(httpClient));
+            ArgumentNullException.ThrowIfNull(parsers, nameof(parsers));
 
             _httpClient = httpClient;
             _logger = logger;
@@ -256,25 +259,168 @@ namespace NetSearch
 
             var escapedRequestUrl = requestUrl.ToString();
 
-            var response = await _httpClient.GetStringAsync(escapedRequestUrl, cancellationToken);
+            var playwright = await Playwright.CreateAsync();
+            var browser = await playwright.Chromium.LaunchAsync();
 
-            foreach (var parser in _parsers)
+            var fullUrl = "https://google.com/search" + escapedRequestUrl;
+
+            var response = await browser.NewPageAsync();
+            await response.GotoAsync(fullUrl);
+
+            var html = await response.ContentAsync();
+            var hits = new List<SearchHit>();
+
+            if (await TryParse(html!, hits))
             {
-                try
-                {
-                    if (await parser.TryParse(response, result.Hits))
-                    {
-                        break;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, $"An error occurred while parsing the response in {parser}");
-                }
+                
             }
+
 
             return result;
         }
+
+        private static bool TryGetQueryValue(string query, string key, out string? value)
+        {
+            value = null;
+
+            var normalizedQuery = query.TrimStart('?');
+            var pairs = normalizedQuery.Split('&', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            foreach (var pair in pairs)
+            {
+                var separator = pair.IndexOf('=');
+                var currentKey = separator >= 0 ? pair[..separator] : pair;
+                if (!currentKey.Equals(key, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var currentValue = separator >= 0 ? pair[(separator + 1)..] : string.Empty;
+                value = WebUtility.UrlDecode(currentValue);
+                return !string.IsNullOrWhiteSpace(value);
+            }
+
+            return false;
+        }
+
+        private static bool TryExtractRedirectUrl(string url, out string? redirectUrl)
+        {
+            redirectUrl = null;
+
+            if (url.StartsWith($"{GoogleRedirectPath}?", StringComparison.OrdinalIgnoreCase))
+            {
+                var query = url[(GoogleRedirectPath.Length + 1)..];
+                return TryGetQueryValue(query, "q", out redirectUrl) || TryGetQueryValue(query, "url", out redirectUrl);
+            }
+
+            if (Uri.TryCreate(url, UriKind.Absolute, out var absoluteUri))
+            {
+                if (!absoluteUri.AbsolutePath.Equals(GoogleRedirectPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                var questionMarkIndex = url.IndexOf('?');
+                if (questionMarkIndex < 0)
+                {
+                    return false;
+                }
+
+                var query = url[(questionMarkIndex + 1)..];
+                return TryGetQueryValue(query, "q", out redirectUrl) || TryGetQueryValue(query, "url", out redirectUrl);
+            }
+
+            return false;
+        }
+
+        private Task<bool> TryParse(string response, List<SearchHit> results)
+        {
+            var doc = new HtmlDocument();
+            doc.LoadHtml(response);
+
+            var resultsContainer = doc.DocumentNode.SelectSingleNode("//div[@id='search']") ?? doc.DocumentNode;
+            var individualResults = resultsContainer.SelectNodes(".//article[.//h3] | .//a[@href][.//h3] | .//div[./a[@href][./h3] and not(@id='search')]");
+            if (individualResults == null)
+            {
+                return Task.FromResult(false);
+            }
+
+            var urls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var individualResult in individualResults)
+            {
+                var titleNode = individualResult.SelectSingleNode(".//h3");
+
+                if (titleNode == null)
+                {
+                    continue;
+                }
+
+                var title = HtmlEntity.DeEntitize(titleNode.InnerText).Trim();
+                if (string.IsNullOrWhiteSpace(title))
+                {
+                    continue;
+                }
+
+                var imageNode = individualResult.SelectSingleNode(".//img[@src]");
+                var image = imageNode?.GetAttributeValue("src", default(string));
+
+                var urlNode = individualResult.Name == "a"
+                    ? individualResult
+                    : individualResult.SelectSingleNode(".//a[@href]");
+                var url = NormalizeUrl(urlNode?.GetAttributeValue("href", null));
+                if (string.IsNullOrWhiteSpace(url))
+                {
+                    continue;
+                }
+
+                if (!urls.Add(url))
+                {
+                    continue;
+                }
+
+                var contentNodes = individualResult.SelectNodes(".//div[@data-snf and @data-sncf]//div//span");
+
+                string? date = string.Empty;
+                string content = string.Empty;
+
+                if (contentNodes is { Count: > 0 })
+                {
+                    date = contentNodes.Count > 1 ? HtmlEntity.DeEntitize(contentNodes[1].InnerText).Trim() : string.Empty;
+                    content = contentNodes.Count > 2 ? HtmlEntity.DeEntitize(contentNodes[2].InnerText).Trim() : string.Empty;
+                }
+
+                var result = new SearchHit
+                {
+                    Title = title,
+                    Url = url,
+                    Content = content,
+                    Image = image,
+                    Date = date
+                };
+
+                results.Add(result);
+            }
+
+            return Task.FromResult(results.Any());
+        }
+
+
+        private static string? NormalizeUrl(string? url)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                return null;
+            }
+
+            if (TryExtractRedirectUrl(url, out var redirectUrl))
+            {
+                return redirectUrl;
+            }
+
+            return url;
+        }
+
 
         private static string? GetSearchFilter(GoogleSearchType searchType)
             => searchType switch
