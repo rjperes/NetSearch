@@ -8,6 +8,8 @@ namespace NetSearch.Tests;
 
 public class SearchTests
 {
+    private const string RunLiveTestsEnvironmentVariable = "NETSEARCH_RUN_LIVE_TESTS";
+
     [Fact]
     public async Task GoogleSearch_ParsesResults_AndBuildsExpectedQuery()
     {
@@ -274,4 +276,73 @@ public class SearchTests
             });
         }
     }
+
+    [Fact]
+    public async Task GoogleSearch_ParsesResults_FromLiveResponse()
+    {
+        if (!ShouldRunLiveTests())
+        {
+            return;
+        }
+
+        using var client = new HttpClient { BaseAddress = new Uri("https://google.com/search") };
+        var options = new SearchOptions().SetChromeUserAgent().AcceptLanguages("en");
+        var search = new GoogleSearch(client, Options.Create(options), NullLogger<GoogleSearch>.Instance, []);
+
+        var result = await search.Search("dotnet", new GoogleQueryOptions { SearchType = GoogleSearchType.Web });
+
+        Assert.NotEmpty(result.Hits);
+        Assert.All(result.Hits, static hit =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(hit.Title));
+            Assert.False(string.IsNullOrWhiteSpace(hit.Url));
+        });
+    }
+
+    [Fact]
+    public async Task BingSearch_ParsesResults_FromLiveResponse()
+    {
+        if (!ShouldRunLiveTests())
+        {
+            return;
+        }
+
+        using var client = new HttpClient { BaseAddress = new Uri("https://bing.com/search") };
+        var options = new SearchOptions().SetEdgeUserAgent().AcceptLanguages("en");
+        var search = new BingSearch(client, Options.Create(options), NullLogger<BingSearch>.Instance, []);
+
+        var result = await search.Search("dotnet", new BingQueryOptions { SearchType = BingSearchType.Web });
+
+        Assert.NotEmpty(result.Hits);
+        Assert.All(result.Hits, static hit =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(hit.Title));
+            Assert.False(string.IsNullOrWhiteSpace(hit.Url));
+        });
+    }
+
+    [Fact]
+    public async Task YouTubeSearch_ParsesResults_FromLiveResponse()
+    {
+        if (!ShouldRunLiveTests())
+        {
+            return;
+        }
+
+        using var client = new HttpClient { BaseAddress = new Uri("https://www.youtube.com/results") };
+        var options = new SearchOptions().SetChromeUserAgent().AcceptLanguages("en");
+        var search = new YouTubeSearch(client, Options.Create(options), NullLogger<YouTubeSearch>.Instance, []);
+
+        var result = await search.Search("dotnet", new YouTubeQueryOptions { SearchType = YouTubeSearchType.Video });
+
+        Assert.NotEmpty(result.Hits);
+        Assert.All(result.Hits, static hit =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(hit.Title));
+            Assert.False(string.IsNullOrWhiteSpace(hit.Url));
+        });
+    }
+
+    private static bool ShouldRunLiveTests()
+        => string.Equals(Environment.GetEnvironmentVariable(RunLiveTestsEnvironmentVariable), "true", StringComparison.OrdinalIgnoreCase);
 }
