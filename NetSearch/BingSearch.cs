@@ -29,11 +29,13 @@ namespace NetSearch
                 doc.LoadHtml(response);
 
                 var resultsContainer = doc.DocumentNode.SelectSingleNode("//ol[@id='b_results']") ?? doc.DocumentNode;
-                var individualResults = resultsContainer.SelectNodes(".//li[contains(@class,'b_algo')]");
+                var individualResults = resultsContainer.SelectNodes(".//li[contains(@class,'b_algo')] | .//li[.//h2/a[@href]]");
                 if (individualResults == null)
                 {
                     return Task.FromResult(false);
                 }
+
+                var urls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
                 foreach (var individualResult in individualResults)
                 {
@@ -50,7 +52,12 @@ namespace NetSearch
                         continue;
                     }
 
-                    var content = HtmlEntity.DeEntitize(individualResult.SelectSingleNode(".//div[contains(@class,'b_caption')]//p")?.InnerText ?? string.Empty).Trim();
+                    if (!urls.Add(url))
+                    {
+                        continue;
+                    }
+
+                    var content = HtmlEntity.DeEntitize(individualResult.SelectSingleNode(".//div[contains(@class,'b_caption')]//p | .//p")?.InnerText ?? string.Empty).Trim();
                     var image = individualResult.SelectSingleNode(".//img[@src]")?.GetAttributeValue("src", default(string));
                     var date = HtmlEntity.DeEntitize(individualResult.SelectSingleNode(".//span[contains(@class,'news_dt')]")?.InnerText ?? string.Empty).Trim();
 

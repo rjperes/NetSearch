@@ -87,6 +87,61 @@ public class SearchTests
     }
 
     [Fact]
+    public async Task GoogleSearch_ParsesResults_WithGoogleRedirectUrls()
+    {
+        const string html = """
+            <html><body>
+              <div id="search">
+                <div>
+                  <a href="/url?q=https%3A%2F%2Flearn.microsoft.com%2Fdotnet&sa=U">
+                    <h3>.NET documentation</h3>
+                  </a>
+                  <div data-snf="1" data-sncf="1">
+                    <div><span>ignored</span><span>2025-01-01</span><span>Build apps with .NET</span></div>
+                  </div>
+                </div>
+              </div>
+            </body></html>
+            """;
+
+        var handler = new StubHttpMessageHandler(html);
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://google.com/search") };
+        var search = new GoogleSearch(client, Options.Create(new SearchOptions()), NullLogger<GoogleSearch>.Instance, []);
+
+        var result = await search.Search("dotnet");
+
+        Assert.Single(result.Hits);
+        Assert.Equal("https://learn.microsoft.com/dotnet", result.Hits[0].Url);
+        Assert.Equal(".NET documentation", result.Hits[0].Title);
+    }
+
+    [Fact]
+    public async Task BingSearch_ParsesResults_FromFallbackListItemSelector()
+    {
+        const string html = """
+            <html><body>
+              <ul>
+                <li>
+                  <h2><a href="https://learn.microsoft.com/dotnet">Learn .NET</a></h2>
+                  <p>Microsoft .NET content</p>
+                </li>
+              </ul>
+            </body></html>
+            """;
+
+        var handler = new StubHttpMessageHandler(html);
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://bing.com/search") };
+        var search = new BingSearch(client, Options.Create(new SearchOptions()), NullLogger<BingSearch>.Instance, []);
+
+        var result = await search.Search("dotnet");
+
+        Assert.Single(result.Hits);
+        Assert.Equal("Learn .NET", result.Hits[0].Title);
+        Assert.Equal("https://learn.microsoft.com/dotnet", result.Hits[0].Url);
+        Assert.Equal("Microsoft .NET content", result.Hits[0].Content);
+    }
+
+    [Fact]
     public async Task YouTubeSearch_ParsesVideoResults_FromHtml_AndBuildsExpectedQuery()
     {
         const string html = """
@@ -179,6 +234,31 @@ public class SearchTests
         Assert.Equal("https://example.com/playlist.png", result.Hits[0].Image);
         Assert.NotNull(handler.LastRequestUri);
         Assert.Equal("?search_query=dotnet&sp=EgIQAw==", Uri.UnescapeDataString(handler.LastRequestUri!.Query));
+    }
+
+    [Fact]
+    public async Task YouTubeSearch_ParsesVideoResults_FromInitialDataJson()
+    {
+        const string html = """
+            <html><body>
+              <script>
+                var ytInitialData = {"contents":{"twoColumnSearchResultsRenderer":{"primaryContents":{"sectionListRenderer":{"contents":[{"itemSectionRenderer":{"contents":[{"videoRenderer":{"title":{"runs":[{"text":"DotNet Show"}]},"navigationEndpoint":{"commandMetadata":{"webCommandMetadata":{"url":"/watch?v=abc123"}}},"descriptionSnippet":{"runs":[{"text":"Deep dive"}]},"publishedTimeText":{"simpleText":"2 days ago"},"thumbnail":{"thumbnails":[{"url":"https://img.youtube.com/1.jpg"},{"url":"https://img.youtube.com/2.jpg"}]}}}]}}]}}}}};
+              </script>
+            </body></html>
+            """;
+
+        var handler = new StubHttpMessageHandler(html);
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://www.youtube.com/results") };
+        var search = new YouTubeSearch(client, Options.Create(new SearchOptions()), NullLogger<YouTubeSearch>.Instance, []);
+
+        var result = await search.Search("dotnet");
+
+        Assert.Single(result.Hits);
+        Assert.Equal("DotNet Show", result.Hits[0].Title);
+        Assert.Equal("https://www.youtube.com/watch?v=abc123", result.Hits[0].Url);
+        Assert.Equal("Deep dive", result.Hits[0].Content);
+        Assert.Equal("2 days ago", result.Hits[0].Date);
+        Assert.Equal("https://img.youtube.com/2.jpg", result.Hits[0].Image);
     }
 
     private sealed class StubHttpMessageHandler(string payload) : HttpMessageHandler
