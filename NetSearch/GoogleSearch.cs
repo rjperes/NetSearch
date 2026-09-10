@@ -2,6 +2,7 @@ using HtmlAgilityPack;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
+using System.Net;
 using System.Text;
 
 namespace NetSearch
@@ -23,17 +24,21 @@ namespace NetSearch
     {
         private class ChromeResultsParser : IResultsParser
         {
+            private const string GoogleRedirectPath = "/url";
+
             public Task<bool> TryParse(string response, List<SearchHit> results)
             {
                 var doc = new HtmlDocument();
                 doc.LoadHtml(response);
 
                 var resultsContainer = doc.DocumentNode.SelectSingleNode("//div[@id='search']") ?? doc.DocumentNode;
-                var individualResults = resultsContainer.SelectNodes(".//div[@jscontroller] | .//article[.//h3]");
+                var individualResults = resultsContainer.SelectNodes(".//article[.//h3] | .//a[@href][.//h3] | .//div[./a[@href][./h3] and not(@id='search')]");
                 if (individualResults == null)
                 {
                     return Task.FromResult(false);
                 }
+
+                var urls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
                 foreach (var individualResult in individualResults)
                 {
@@ -53,9 +58,16 @@ namespace NetSearch
                     var imageNode = individualResult.SelectSingleNode(".//img[@src]");
                     var image = imageNode?.GetAttributeValue("src", default(string));
 
-                    var urlNode = individualResult.SelectSingleNode(".//a[@jsname and @href] | .//a[@href]");
-                    var url = urlNode?.GetAttributeValue("href", null);
+                    var urlNode = individualResult.Name == "a"
+                        ? individualResult
+                        : individualResult.SelectSingleNode(".//a[@href]");
+                    var url = NormalizeUrl(urlNode?.GetAttributeValue("href", null));
                     if (string.IsNullOrWhiteSpace(url))
+                    {
+                        continue;
+                    }
+
+                    if (!urls.Add(url))
                     {
                         continue;
                     }
@@ -84,6 +96,75 @@ namespace NetSearch
                 }
 
                 return Task.FromResult(results.Any());
+            }
+
+            private static string? NormalizeUrl(string? url)
+            {
+                if (string.IsNullOrWhiteSpace(url))
+                {
+                    return null;
+                }
+
+                if (TryExtractRedirectUrl(url, out var redirectUrl))
+                {
+                    return redirectUrl;
+                }
+
+                return url;
+            }
+
+            private static bool TryExtractRedirectUrl(string url, out string? redirectUrl)
+            {
+                redirectUrl = null;
+
+                if (url.StartsWith($"{GoogleRedirectPath}?", StringComparison.OrdinalIgnoreCase))
+                {
+                    var query = url[(GoogleRedirectPath.Length + 1)..];
+                    return TryGetQueryValue(query, "q", out redirectUrl) || TryGetQueryValue(query, "url", out redirectUrl);
+                }
+
+                if (Uri.TryCreate(url, UriKind.Absolute, out var absoluteUri))
+                {
+                    if (!absoluteUri.AbsolutePath.Equals(GoogleRedirectPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return false;
+                    }
+
+                    var questionMarkIndex = url.IndexOf('?');
+                    if (questionMarkIndex < 0)
+                    {
+                        return false;
+                    }
+
+                    var query = url[(questionMarkIndex + 1)..];
+                    return TryGetQueryValue(query, "q", out redirectUrl) || TryGetQueryValue(query, "url", out redirectUrl);
+                }
+
+                return false;
+            }
+
+            private static bool TryGetQueryValue(string query, string key, out string? value)
+            {
+                value = null;
+
+                var normalizedQuery = query.TrimStart('?');
+                var pairs = normalizedQuery.Split('&', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+                foreach (var pair in pairs)
+                {
+                    var separator = pair.IndexOf('=');
+                    var currentKey = separator >= 0 ? pair[..separator] : pair;
+                    if (!currentKey.Equals(key, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var currentValue = separator >= 0 ? pair[(separator + 1)..] : string.Empty;
+                    value = WebUtility.UrlDecode(currentValue);
+                    return !string.IsNullOrWhiteSpace(value);
+                }
+
+                return false;
             }
         }
 

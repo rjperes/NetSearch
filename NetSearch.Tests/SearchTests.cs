@@ -8,6 +8,8 @@ namespace NetSearch.Tests;
 
 public class SearchTests
 {
+    private const string RunLiveTestsEnvironmentVariable = "NETSEARCH_RUN_LIVE_TESTS";
+
     [Fact]
     public async Task GoogleSearch_ParsesResults_AndBuildsExpectedQuery()
     {
@@ -84,6 +86,133 @@ public class SearchTests
         Assert.Equal("https://bing.example.com/image.png", result.Hits[0].Image);
         Assert.NotNull(handler.LastRequestUri);
         Assert.Equal("/news/search?q=dotnet site:contoso.com&first=11", Uri.UnescapeDataString(handler.LastRequestUri!.PathAndQuery));
+    }
+
+    [Fact]
+    public async Task GoogleSearch_ParsesResults_WithGoogleRedirectUrls()
+    {
+        const string html = """
+            <html><body>
+              <div id="search">
+                <div>
+                  <a href="/url?q=https%3A%2F%2Flearn.microsoft.com%2Fdotnet%3Fq%3Dhello+world&sa=U">
+                    <h3>.NET documentation</h3>
+                  </a>
+                  <div data-snf="1" data-sncf="1">
+                    <div><span>ignored</span><span>2025-01-01</span><span>Build apps with .NET</span></div>
+                  </div>
+                </div>
+              </div>
+            </body></html>
+            """;
+
+        var handler = new StubHttpMessageHandler(html);
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://google.com/search") };
+        var search = new GoogleSearch(client, Options.Create(new SearchOptions()), NullLogger<GoogleSearch>.Instance, []);
+
+        var result = await search.Search("dotnet");
+
+        Assert.Single(result.Hits);
+        Assert.Equal("https://learn.microsoft.com/dotnet?q=hello world", result.Hits[0].Url);
+        Assert.Equal(".NET documentation", result.Hits[0].Title);
+    }
+
+    [Fact]
+    public async Task GoogleSearch_ParsesResults_FromIndividualContainers_Only()
+    {
+        const string html = """
+            <html><body>
+              <div id="search">
+                <div class="group">
+                  <div>
+                    <a href="https://example.com/one"><h3>First result</h3></a>
+                  </div>
+                  <div>
+                    <a href="https://example.com/two"><h3>Second result</h3></a>
+                    <img src="https://example.com/two.png" />
+                    <div data-snf="1" data-sncf="1">
+                      <div><span>ignored</span><span>2025-02-02</span><span>Second content</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </body></html>
+            """;
+
+        var handler = new StubHttpMessageHandler(html);
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://google.com/search") };
+        var search = new GoogleSearch(client, Options.Create(new SearchOptions()), NullLogger<GoogleSearch>.Instance, []);
+
+        var result = await search.Search("dotnet");
+
+        Assert.Collection(result.Hits,
+            hit =>
+            {
+                Assert.Equal("First result", hit.Title);
+                Assert.Equal("https://example.com/one", hit.Url);
+                Assert.Equal(string.Empty, hit.Content);
+                Assert.Equal(string.Empty, hit.Date);
+                Assert.Null(hit.Image);
+            },
+            hit =>
+            {
+                Assert.Equal("Second result", hit.Title);
+                Assert.Equal("https://example.com/two", hit.Url);
+                Assert.Equal("Second content", hit.Content);
+                Assert.Equal("2025-02-02", hit.Date);
+                Assert.Equal("https://example.com/two.png", hit.Image);
+            });
+    }
+
+    [Fact]
+    public async Task GoogleSearch_ParsesResults_WithMalformedGoogleRedirectUrls()
+    {
+        const string html = """
+            <html><body>
+              <div id="search">
+                <div>
+                  <a href="/url?q=https%3A%2F%2Fexample.com%2Fbad%ZZ+value&sa=U">
+                    <h3>Malformed redirect</h3>
+                  </a>
+                </div>
+              </div>
+            </body></html>
+            """;
+
+        var handler = new StubHttpMessageHandler(html);
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://google.com/search") };
+        var search = new GoogleSearch(client, Options.Create(new SearchOptions()), NullLogger<GoogleSearch>.Instance, []);
+
+        var result = await search.Search("dotnet");
+
+        Assert.Single(result.Hits);
+        Assert.Equal("https://example.com/bad%ZZ value", result.Hits[0].Url);
+    }
+
+    [Fact]
+    public async Task BingSearch_ParsesResults_FromFallbackListItemSelector()
+    {
+        const string html = """
+            <html><body>
+              <ul>
+                <li>
+                  <h2><a href="https://learn.microsoft.com/dotnet">Learn .NET</a></h2>
+                  <p>Microsoft .NET content</p>
+                </li>
+              </ul>
+            </body></html>
+            """;
+
+        var handler = new StubHttpMessageHandler(html);
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://bing.com/search") };
+        var search = new BingSearch(client, Options.Create(new SearchOptions()), NullLogger<BingSearch>.Instance, []);
+
+        var result = await search.Search("dotnet");
+
+        Assert.Single(result.Hits);
+        Assert.Equal("Learn .NET", result.Hits[0].Title);
+        Assert.Equal("https://learn.microsoft.com/dotnet", result.Hits[0].Url);
+        Assert.Equal("Microsoft .NET content", result.Hits[0].Content);
     }
 
     [Fact]
@@ -181,6 +310,31 @@ public class SearchTests
         Assert.Equal("?search_query=dotnet&sp=EgIQAw==", Uri.UnescapeDataString(handler.LastRequestUri!.Query));
     }
 
+    [Fact]
+    public async Task YouTubeSearch_ParsesVideoResults_FromInitialDataJson()
+    {
+        const string html = """
+            <html><body>
+              <script>
+                var ytInitialData = {"contents":{"twoColumnSearchResultsRenderer":{"primaryContents":{"sectionListRenderer":{"contents":[{"itemSectionRenderer":{"contents":[{"videoRenderer":{"title":{"runs":[{"text":"DotNet Show"}]},"navigationEndpoint":{"commandMetadata":{"webCommandMetadata":{"url":"/watch?v=abc123"}}},"descriptionSnippet":{"runs":[{"text":"Deep dive"}]},"publishedTimeText":{"simpleText":"2 days ago"},"thumbnail":{"thumbnails":[{"url":"https://img.youtube.com/1.jpg"},{"url":"https://img.youtube.com/2.jpg"}]}}}]}}]}}}}};
+              </script>
+            </body></html>
+            """;
+
+        var handler = new StubHttpMessageHandler(html);
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://www.youtube.com/results") };
+        var search = new YouTubeSearch(client, Options.Create(new SearchOptions()), NullLogger<YouTubeSearch>.Instance, []);
+
+        var result = await search.Search("dotnet");
+
+        Assert.Single(result.Hits);
+        Assert.Equal("DotNet Show", result.Hits[0].Title);
+        Assert.Equal("https://www.youtube.com/watch?v=abc123", result.Hits[0].Url);
+        Assert.Equal("Deep dive", result.Hits[0].Content);
+        Assert.Equal("2 days ago", result.Hits[0].Date);
+        Assert.Equal("https://img.youtube.com/2.jpg", result.Hits[0].Image);
+    }
+
     private sealed class StubHttpMessageHandler(string payload) : HttpMessageHandler
     {
         public Uri? LastRequestUri { get; private set; }
@@ -194,4 +348,73 @@ public class SearchTests
             });
         }
     }
+
+    [Fact]
+    public async Task GoogleSearch_ParsesResults_FromLiveResponse()
+    {
+        if (!ShouldRunLiveTests())
+        {
+            return;
+        }
+
+        using var client = new HttpClient { BaseAddress = new Uri("https://google.com/search") };
+        var options = new SearchOptions().SetChromeUserAgent().AcceptLanguages("en");
+        var search = new GoogleSearch(client, Options.Create(options), NullLogger<GoogleSearch>.Instance, []);
+
+        var result = await search.Search("dotnet", new GoogleQueryOptions { SearchType = GoogleSearchType.Web });
+
+        Assert.NotEmpty(result.Hits);
+        Assert.All(result.Hits, static hit =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(hit.Title));
+            Assert.False(string.IsNullOrWhiteSpace(hit.Url));
+        });
+    }
+
+    [Fact]
+    public async Task BingSearch_ParsesResults_FromLiveResponse()
+    {
+        if (!ShouldRunLiveTests())
+        {
+            return;
+        }
+
+        using var client = new HttpClient { BaseAddress = new Uri("https://bing.com/search") };
+        var options = new SearchOptions().SetEdgeUserAgent().AcceptLanguages("en");
+        var search = new BingSearch(client, Options.Create(options), NullLogger<BingSearch>.Instance, []);
+
+        var result = await search.Search("dotnet", new BingQueryOptions { SearchType = BingSearchType.Web });
+
+        Assert.NotEmpty(result.Hits);
+        Assert.All(result.Hits, static hit =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(hit.Title));
+            Assert.False(string.IsNullOrWhiteSpace(hit.Url));
+        });
+    }
+
+    [Fact]
+    public async Task YouTubeSearch_ParsesResults_FromLiveResponse()
+    {
+        if (!ShouldRunLiveTests())
+        {
+            return;
+        }
+
+        using var client = new HttpClient { BaseAddress = new Uri("https://www.youtube.com/results") };
+        var options = new SearchOptions().SetChromeUserAgent().AcceptLanguages("en");
+        var search = new YouTubeSearch(client, Options.Create(options), NullLogger<YouTubeSearch>.Instance, []);
+
+        var result = await search.Search("dotnet", new YouTubeQueryOptions { SearchType = YouTubeSearchType.Video });
+
+        Assert.NotEmpty(result.Hits);
+        Assert.All(result.Hits, static hit =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(hit.Title));
+            Assert.False(string.IsNullOrWhiteSpace(hit.Url));
+        });
+    }
+
+    private static bool ShouldRunLiveTests()
+        => string.Equals(Environment.GetEnvironmentVariable(RunLiveTestsEnvironmentVariable), "true", StringComparison.OrdinalIgnoreCase);
 }
