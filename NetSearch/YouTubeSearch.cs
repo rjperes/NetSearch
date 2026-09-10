@@ -83,7 +83,10 @@ namespace NetSearch
                 try
                 {
                     using var document = JsonDocument.Parse(initialDataJson);
-                    TraverseNode(document.RootElement, results);
+                    if (TryGetSearchPrimaryContents(document.RootElement, out var primaryContents))
+                    {
+                        TraverseNode(primaryContents, results);
+                    }
                 }
                 catch (JsonException)
                 {
@@ -207,6 +210,25 @@ namespace NetSearch
 
                         break;
                 }
+            }
+
+            private static bool TryGetSearchPrimaryContents(JsonElement root, out JsonElement primaryContents)
+            {
+                primaryContents = default;
+
+                if (!TryGetProperty(root, out var contents, "contents") ||
+                    !TryGetProperty(contents, out var twoColumnSearchResultsRenderer, "twoColumnSearchResultsRenderer"))
+                {
+                    return false;
+                }
+
+                return TryGetProperty(twoColumnSearchResultsRenderer, out primaryContents, "primaryContents");
+            }
+
+            private static bool TryGetProperty(JsonElement element, out JsonElement value, string propertyName)
+            {
+                value = default;
+                return element.ValueKind == JsonValueKind.Object && element.TryGetProperty(propertyName, out value);
             }
 
             private static void TryAddHit(JsonElement renderer, List<SearchHit> results, Func<JsonElement, string> dateResolver)
